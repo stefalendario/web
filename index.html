@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<title>Stefalendario</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg-deep);color:var(--text-main);
+  transition:background .25s,color .25s;
+}
+
+/* ── Tokens: light default ── */
+:root{
+  --primary:#7C3AED;--primary-lt:#C084FC;
+  --cinema:#FF6B6B;--musica:#A78BFA;--teatro:#FBBF24;--natura:#34D399;--drink:#FB923C;
+  --today-border:#2DD4BF;
+  --bg-deep:#F2F2FA;--bg-card:#FFF;--bg-field:#EEEEEF;
+  --border:#D0D0E8;--text-main:#1A1A30;--text-sub:#4A4A70;
+  --text-muted:#7878A0;--text-empty:#A0A0C0;
+  --today-bg:#E0F7F4;--today-text:#0D9488;
+  --radius:14px;--shadow:0 4px 24px rgba(0,0,0,.12);
+}
+body.dark{
+  --bg-deep:#0A0A14;--bg-card:#14142A;--bg-field:#1C1C38;
+  --border:#2E2E50;--text-main:#F5F0FF;--text-sub:#BBB3D4;
+  --text-muted:#7E7A9A;--text-empty:#6B6890;
+  --today-bg:#0D3D3D;--today-text:#2DD4BF;
+  --shadow:0 4px 24px rgba(0,0,0,.45);
+}
+
+/* ── App shell: full height, no scroll on body ── */
+#app{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden}
+.screen.active{display:flex}
+
+/* ── Topbar ── */
+.topbar{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 10px;
+  padding-top:calc(14px + env(safe-area-inset-top,0px));
+  background:var(--bg-deep);border-bottom:1px solid var(--border);z-index:50;
+}
+.topbar-title{font-size:19px;font-weight:700;color:var(--text-main)}
+.topbar-actions{display:flex;gap:8px}
+.icon-btn{
+  background:var(--bg-field);border:none;border-radius:10px;
+  color:var(--text-sub);cursor:pointer;
+  width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;transition:background .15s;
+}
+.icon-btn.back-btn{font-size:24px;font-weight:700;padding-right:2px}
+.icon-btn:active{background:var(--border)}
+
+/* ── Calendar screen layout: fixed column, no page scroll ── */
+#screen-calendar{
+  display:none;flex-direction:column;
+  height:100dvh;overflow:hidden;
+}
+#screen-calendar.active{display:flex}
+
+.cal-nav{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 14px;gap:8px;
+}
+.cal-nav-label{font-size:16px;font-weight:700;color:var(--text-main);flex:1;text-align:center}
+
+/* ── Cal area: fixed height depending on view ── */
+#cal-area{flex-shrink:0}
+
+/* ── Event list: takes remaining space, scrolls ── */
+.event-list{
+  flex:1;overflow-y:auto;padding:6px 12px calc(var(--bb-h, 120px) + 8px);
+  -webkit-overflow-scrolling:touch;min-height:0;
+}
+
+/* ── Bottom bar: pinned at bottom of calendar screen ── */
+.bottom-bar{
+  flex-shrink:0;
+  border-top:1px solid var(--border);background:var(--bg-deep);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+
+/* Filters: 2 rows via flex-wrap */
+.filters{
+  display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px 5px;
+  border-bottom:1px solid var(--border);
+}
+.chip{
+  padding:4px 11px;border-radius:20px;
+  border:1.5px solid var(--border);background:var(--bg-field);
+  color:var(--text-sub);font-size:11.5px;font-weight:500;cursor:pointer;
+  transition:all .15s;white-space:nowrap;
+}
+.chip.active{border-color:var(--primary);background:rgba(124,58,237,.13);color:var(--primary);font-weight:700}
+body.dark .chip.active{background:rgba(124,58,237,.24);color:var(--primary-lt)}
+.chip-clear{
+  padding:4px 11px;border-radius:20px;
+  border:1.5px solid var(--cinema);background:rgba(255,107,107,.10);
+  color:#dc2626;font-size:11.5px;font-weight:700;cursor:pointer;
+  transition:all .15s;white-space:nowrap;display:none;
+}
+body.dark .chip-clear{color:var(--cinema);background:rgba(255,107,107,.16);}
+.chip-clear.visible{display:inline-flex;align-items:center;gap:3px;}
+.chip-clear:active{background:rgba(255,107,107,.22);}
+
+/* View tabs */
+.view-tabs{display:flex;align-items:center;padding:4px 8px;gap:2px}
+.view-tab{
+  flex:1;padding:8px 4px 6px;border:none;background:transparent;
+  color:var(--text-muted);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+  transition:color .15s,background .15s;
+  position:relative;
+}
+.view-tab .tab-icon{font-size:17px;transition:transform .15s}
+.view-tab .tab-label{font-size:10px;font-weight:600;letter-spacing:.02em}
+/* Active: purple pill background */
+.view-tab.active{color:var(--primary)}
+.view-tab.active::before{
+  content:'';position:absolute;inset:4px 8px;border-radius:10px;
+  background:rgba(124,58,237,.12);
+}
+body.dark .view-tab.active::before{background:rgba(124,58,237,.25)}
+.view-tab.active .tab-icon{transform:scale(1.12)}
+
+/* ── Month grid ── */
+.cal-header{display:grid;grid-template-columns:repeat(7,1fr);padding:2px 8px 0}
+.cal-header-day{text-align:center;font-size:10px;font-weight:700;color:var(--text-muted);padding:2px 0;text-transform:uppercase}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:2px 6px 4px}
+.cal-cell{
+  min-height:46px;border-radius:9px;padding:3px 2px;
+  cursor:pointer;transition:background .12s;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+}
+.cal-cell:active{background:var(--bg-field)}
+.cal-cell.other-month .cal-day-num{color:var(--text-empty)}
+.cal-cell.today{background:var(--today-bg);border:1.5px solid var(--today-border)}
+.cal-cell.selected{background:rgba(124,58,237,.13);border:1.5px solid var(--primary)}
+.cal-day-num{
+  font-size:13px;font-weight:600;color:var(--text-main);
+  width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:50%;
+}
+.cal-cell.today .cal-day-num{color:var(--today-text)}
+.cal-dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:32px}
+.cal-dot{width:5px;height:5px;border-radius:50%}
+
+/* ── Week view: compact rows, no inner scroll ── */
+.week-col{display:flex;flex-direction:column}
+.week-row{
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .12s;
+  padding:5px 12px;min-height:0;
+}
+.week-row:last-child{border-bottom:none}
+.week-row:active{background:var(--bg-field)}
+.week-row.today{background:var(--today-bg)}
+.week-row.today .week-row-daynum{color:var(--today-text)}
+.week-row.selected{background:rgba(124,58,237,.08);border-left:3px solid var(--primary)}
+.week-row-date{
+  width:44px;flex-shrink:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:0;
+}
+.week-row-dayname{font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase}
+.week-row-daynum{font-size:17px;font-weight:800;color:var(--text-main);line-height:1.1}
+.week-row-events{flex:1;display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.week-pill{
+  padding:2px 7px;border-radius:5px;font-size:11px;font-weight:600;
+  color:#fff;white-space:nowrap;max-width:140px;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.week-more{font-size:10px;color:var(--text-muted);padding:2px 4px}
+
+/* ── Day view: just shows label, events in list ── */
+.day-header{
+  padding:8px 16px 6px;
+  font-size:14px;font-weight:700;color:var(--text-sub);
+}
+
+/* ── Slide transition ── */
+.cal-slide-enter-left{animation:slideInLeft .2s ease}
+.cal-slide-enter-right{animation:slideInRight .2s ease}
+@keyframes slideInLeft{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideInRight{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── Touch swipe hint overlay (arrow) ── */
+.swipe-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);
+  font-size:28px;opacity:0;pointer-events:none;
+  transition:opacity .15s;color:var(--primary);z-index:20;
+}
+.swipe-arrow.left{left:6px}
+.swipe-arrow.right{right:6px}
+.swipe-arrow.show{opacity:.55}
+#cal-wrapper{position:relative;flex-shrink:0}
+
+/* ── Event cards ── */
+.date-section-label{
+  font-size:11px;font-weight:700;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.06em;padding:8px 4px 3px;
+}
+.event-card{
+  background:var(--bg-card);border-radius:var(--radius);
+  padding:12px 13px 10px;margin-bottom:7px;
+  cursor:pointer;transition:transform .1s;
+  border:1px solid var(--border);
+  display:flex;flex-direction:column;gap:5px;
+}
+.event-card:active{transform:scale(.98)}
+.event-card-top{display:flex;align-items:flex-start;gap:10px}
+.event-type-badge{
+  flex-shrink:0;width:34px;height:34px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+}
+.event-card-info{flex:1;min-width:0}
+.event-title{font-size:14px;font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+.event-attendees{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-sub)}
+.attendee-avatar{
+  width:20px;height:20px;border-radius:50%;background:var(--primary);
+  color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  border:1.5px solid var(--bg-card);margin-left:-5px;
+}
+.attendee-avatar:first-child{margin-left:0}
+.attend-me-dot{width:8px;height:8px;border-radius:50%;background:var(--natura);box-shadow:0 0 0 2px var(--bg-card);flex-shrink:0}
+
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  flex:1;gap:8px;padding:30px;color:var(--text-empty);text-align:center;min-height:80px;
+}
+.empty-state-icon{font-size:36px;opacity:.45}
+
+/* ── Bar action buttons (replace FAB) ── */
+.bar-btn{
+  width:42px;height:42px;border-radius:50%;
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .15s,opacity .15s,box-shadow .15s;flex-shrink:0;
+  font-size:20px;font-weight:700;
+}
+.bar-btn-primary{
+  background:var(--primary);color:#fff;
+  box-shadow:0 3px 12px rgba(124,58,237,.45);
+}
+.bar-btn-secondary{
+  background:var(--primary);color:#fff;
+  box-shadow:0 3px 12px rgba(124,58,237,.35);
+  opacity:.75;
+}
+.bar-btn-secondary[disabled]{opacity:.25;pointer-events:none;box-shadow:none}
+.bar-btn:active{transform:scale(.88)}
+.bar-btn[disabled]{opacity:.25;pointer-events:none}
+
+/* ── Auth ── */
+#screen-auth{
+  background:linear-gradient(160deg,#0A0A14 0%,#14142A 60%,#1C0A3D 100%);
+  justify-content:space-between;
+}
+.auth-header{padding:56px 28px 0;text-align:center}
+.auth-logo{font-size:64px;margin-bottom:6px}
+.auth-app-name{font-size:30px;font-weight:800;color:#F5F0FF;letter-spacing:-.5px}
+.auth-tagline{font-size:14px;color:#BBB3D4;margin-top:5px}
+.auth-tabs{display:flex;background:rgba(255,255,255,.1);border-radius:12px;padding:3px;margin:24px 28px 0}
+.auth-tab{flex:1;padding:10px;border-radius:9px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:transparent;color:rgba(255,255,255,.5);transition:all .15s}
+.auth-tab.active{background:var(--primary);color:#fff}
+.auth-body{padding:18px 28px 0;display:flex;flex-direction:column;gap:12px}
+.auth-field{
+  background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);
+  border-radius:12px;padding:13px 16px;font-size:16px;color:#F5F0FF;
+  outline:none;width:100%;transition:border-color .15s;-webkit-appearance:none;
+}
+.auth-field:focus{border-color:var(--primary)}
+.auth-field::placeholder{color:rgba(255,255,255,.28)}
+.auth-error{font-size:13px;color:var(--cinema);text-align:center;min-height:15px}
+.auth-footer{padding:14px 28px calc(32px + env(safe-area-inset-bottom,0px))}
+.btn-primary{
+  width:100%;padding:14px;border-radius:13px;
+  background:var(--primary);border:none;color:#fff;
+  font-size:16px;font-weight:700;cursor:pointer;transition:opacity .15s;-webkit-appearance:none;
+}
+.btn-primary:active{opacity:.8}
+.btn-primary:disabled{opacity:.4;cursor:default}
+
+/* ── Detail / Form / Settings ── */
+.detail-hero{padding:18px 18px 14px;display:flex;flex-direction:column;gap:7px}
+.detail-hero-top{display:flex;align-items:flex-start;gap:11px}
+.detail-type-icon{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:24px}
+.detail-title{font-size:20px;font-weight:800;color:var(--text-main);line-height:1.2}
+.detail-inserter{font-size:12px;color:var(--text-muted)}
+.detail-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.detail-row:last-child{border-bottom:none}
+.detail-row-icon{font-size:17px;width:22px;text-align:center;flex-shrink:0}
+.detail-row-content{display:flex;flex-direction:column;gap:1px;flex:1}
+.detail-row-label{font-size:11px;color:var(--text-muted)}
+.detail-row-value{font-size:14px;color:var(--text-main);font-weight:500}
+.detail-body{padding:0 18px;flex:1;overflow-y:auto}
+.attend-btn{
+  margin:12px 18px;padding:12px;border-radius:11px;
+  font-size:14px;font-weight:700;cursor:pointer;border:2px solid;
+  transition:all .15s;width:calc(100% - 36px);
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.attend-btn.attending{background:rgba(52,211,153,.12);border-color:var(--natura);color:#059669}
+body.dark .attend-btn.attending{color:var(--natura)}
+.attend-btn.not-attending{background:rgba(124,58,237,.07);border-color:var(--primary);color:var(--primary)}
+body.dark .attend-btn.not-attending{color:var(--primary-lt)}
+.detail-actions{display:flex;gap:9px;padding:8px 18px 18px}
+.btn-outline{flex:1;padding:11px;border-radius:11px;border:1.5px solid var(--border);background:transparent;color:var(--text-sub);font-size:13px;font-weight:600;cursor:pointer}
+.btn-danger{padding:11px 18px;border-radius:11px;border:1.5px solid var(--cinema);background:rgba(255,107,107,.08);color:#dc2626;font-size:13px;font-weight:600;cursor:pointer}
+body.dark .btn-danger{color:var(--cinema)}
+.map-preview{margin:6px 18px 14px;border-radius:11px;border:1px solid var(--border);height:46px;background:var(--bg-field);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:var(--text-sub);gap:7px;text-decoration:none;font-weight:600}
+
+.form-scroll{flex:1;overflow-y:auto;padding:14px 18px calc(var(--bb-h, 120px) + 14px);-webkit-overflow-scrolling:touch}
+.form-section{margin-bottom:16px}
+.form-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.form-field{background:var(--bg-field);border:1.5px solid var(--border);border-radius:11px;padding:12px 14px;font-size:15px;color:var(--text-main);outline:none;width:100%;transition:border-color .15s;-webkit-appearance:none}
+.form-field:focus{border-color:var(--primary)}
+.form-field::placeholder{color:var(--text-empty)}
+.type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.type-option{padding:10px;border-radius:11px;border:1.5px solid var(--border);background:var(--bg-field);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text-sub)}
+.type-option.selected{border-width:2px;background:rgba(124,58,237,.08)}
+body.dark .type-option.selected{background:rgba(124,58,237,.2)}
+.attendee-list{display:flex;flex-direction:column;gap:5px}
+.attendee-row{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--bg-field);border-radius:9px;cursor:pointer;transition:background .15s}
+.attendee-row:active{background:var(--border)}
+.attendee-check{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;color:transparent;font-size:12px}
+.attendee-check.checked{background:var(--primary);border-color:var(--primary);color:#fff}
+.attendee-name{font-size:14px;color:var(--text-main);font-weight:500}
+/* emoji picker */
+.emoji-grid{display:flex;flex-wrap:wrap;gap:4px;max-height:160px;overflow-y:auto;padding:6px 0}
+.emoji-btn{
+  width:38px;height:38px;border-radius:8px;border:1.5px solid transparent;
+  background:var(--bg-field);font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .12s,background .12s;
+}
+.emoji-btn.picked{border-color:var(--primary);background:rgba(124,58,237,.12)}
+.emoji-btn:active{transform:scale(.9)}
+
+.settings-scroll{flex:1;overflow-y:auto;padding:10px 14px 36px;-webkit-overflow-scrolling:touch}
+.settings-section{margin-bottom:22px}
+.settings-section-title{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px;padding:0 3px}
+.settings-card{background:var(--bg-card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--border);gap:11px}
+.settings-row:last-child{border-bottom:none}
+.settings-row-info{display:flex;flex-direction:column;gap:2px;flex:1}
+.settings-row-label{font-size:14px;color:var(--text-main);font-weight:500}
+.settings-row-sub{font-size:11px;color:var(--text-muted)}
+.toggle{width:48px;height:27px;border-radius:14px;background:var(--border);cursor:pointer;position:relative;transition:background .2s;border:none;flex-shrink:0}
+.toggle.on{background:var(--primary)}
+.toggle::after{content:'';position:absolute;top:2.5px;left:2.5px;width:22px;height:22px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.28)}
+.toggle.on::after{transform:translateX(21px)}
+.cat-badge{display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:18px;font-size:12px;font-weight:600;color:#fff;cursor:pointer}
+.cat-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:5px}
+.user-row{display:flex;align-items:center;gap:11px;padding:11px 15px;border-bottom:1px solid var(--border)}
+.user-row:last-child{border-bottom:none}
+.user-avatar{width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.user-info{flex:1}
+.user-name{font-size:14px;color:var(--text-main);font-weight:600}
+.user-email{font-size:11px;color:var(--text-muted)}
+.me-badge{font-size:10px;font-weight:700;color:var(--primary);background:rgba(124,58,237,.11);padding:3px 7px;border-radius:9px}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:100;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal-sheet{background:var(--bg-card);border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:560px;max-height:85dvh;overflow-y:auto;transform:translateY(100%);transition:transform .24s cubic-bezier(.4,0,.2,1)}
+.modal-overlay.open .modal-sheet{transform:translateY(0)}
+.modal-handle{width:34px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 14px}
+.modal-title{font-size:17px;font-weight:800;color:var(--text-main);margin-bottom:14px}
+.modal-actions{display:flex;gap:9px;margin-top:14px}
+.btn-secondary{flex:1;padding:12px;border-radius:11px;border:1.5px solid var(--border);background:transparent;color:var(--text-sub);font-size:14px;font-weight:600;cursor:pointer}
+.btn-primary-sm{flex:1;padding:12px;border-radius:11px;background:var(--primary);border:none;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(14px);background:var(--bg-card);border:1px solid var(--border);color:var(--text-main);padding:9px 18px;border-radius:18px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;z-index:200;white-space:nowrap;box-shadow:var(--shadow)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── Splash ── */
+#screen-splash{background:#0A0A14;align-items:center;justify-content:center;gap:10px;height:100dvh}
+.splash-logo{font-size:80px;animation:pulse 1.5s ease infinite}
+.splash-name{font-size:27px;font-weight:800;color:#F5F0FF}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.spinner{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:#C084FC;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── Programs view ── */
+.programs-list{flex:1;overflow-y:auto;padding:8px 12px calc(var(--bb-h,120px) + 8px);-webkit-overflow-scrolling:touch;min-height:0}
+.program-card{
+  display:flex;align-items:center;gap:0;
+  background:var(--bg-card);border-radius:var(--radius);
+  border:1px solid var(--border);
+  margin-bottom:7px;overflow:hidden;cursor:pointer;
+  transition:transform .1s;
+}
+.program-card:active{transform:scale(.98)}
+.program-card-bar{width:3px;align-self:stretch;flex-shrink:0}
+.program-card-body{flex:1;padding:10px 12px;min-width:0}
+.program-card-row1{display:flex;align-items:flex-start;gap:6px;margin-bottom:3px}
+.program-card-title{flex:1;font-size:14px;font-weight:700;color:var(--text-main);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.program-type-badge{
+  flex-shrink:0;display:flex;align-items:center;gap:3px;
+  padding:2px 6px;border-radius:6px;
+  font-size:9px;font-weight:800;
+}
+.program-duration{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-sub);margin-bottom:3px}
+.program-cats{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px}
+.program-cat-chip{padding:1px 5px;border-radius:6px;font-size:9px;font-weight:600}
+.program-footer{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-muted)}
+.program-actions{display:flex;flex-direction:column;padding:4px 4px;gap:0;align-self:stretch;justify-content:center}
+.program-action-btn{
+  width:34px;height:34px;border:none;background:transparent;
+  cursor:pointer;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  transition:background .12s;
+}
+.program-action-btn:active{background:var(--bg-field)}
+
+/* Programs form */
+.pf-source-toggle{display:flex;border-radius:11px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:2px}
+.pf-source-btn{flex:1;padding:10px;border:none;background:var(--bg-field);color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.pf-source-btn.active{background:var(--primary);color:#fff}
+.cat-multi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.cat-multi-option{
+  padding:9px;border-radius:11px;border:1.5px solid var(--border);
+  background:var(--bg-field);cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text-sub);
+}
+.cat-multi-option.selected{border-width:2px}
+
+/* Chip disabled (partecipo in programmi view) */
+.chip.disabled{opacity:.35;cursor:default;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Splash -->
+<div id="screen-splash" class="screen active">
+  <div class="splash-logo">👩‍🦰</div>
+  <div class="splash-name">Stefalendario</div>
+  <div style="font-size:13px;color:#BBB3D4;text-align:center;margin-top:4px;letter-spacing:.01em">calendario romano degli eventi tra amici</div>
+  <div style="font-size:11px;color:#7878A0;text-align:center;margin-top:3px;font-style:italic">v2.0 sarde alla beccaficu</div>
+  <div class="spinner" style="margin-top:18px"></div>
+</div>
+
+<!-- Auth -->
+<div id="screen-auth" class="screen">
+  <div class="auth-header">
+    <div class="auth-logo">👩‍🦰</div>
+    <div class="auth-app-name">Stefalendario</div>
+    <div class="auth-tagline">calendario romano degli eventi tra amici</div>
+    <div style="font-size:11px;color:#7878A0;margin-top:4px;font-style:italic">v2.0 sarde alla beccaficu</div>
+  </div>
+  <div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Accedi</button>
+      <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Registrati</button>
+    </div>
+    <div class="auth-body">
+      <input id="auth-name" class="auth-field" type="text" placeholder="Il tuo nome" autocomplete="name" style="display:none"/>
+      <input id="auth-email" class="auth-field" type="email" placeholder="Email" autocomplete="email" inputmode="email"/>
+      <div style="position:relative">
+        <input id="auth-pwd" class="auth-field" type="password" placeholder="Password" autocomplete="current-password" style="padding-right:46px"/>
+        <button onclick="togglePwd('auth-pwd')" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.38);cursor:pointer;font-size:17px">👁</button>
+      </div>
+      <div id="auth-confirm-wrap" style="display:none;position:relative">
+        <input id="auth-confirm" class="auth-field" type="password" placeholder="Conferma password" autocomplete="new-password" style="padding-right:46px"/>
+        <button onclick="togglePwd('auth-confirm')" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.38);cursor:pointer;font-size:17px">👁</button>
+      </div>
+      <div class="auth-error" id="auth-error"></div>
+    </div>
+  </div>
+  <div class="auth-footer">
+    <button class="btn-primary" id="auth-btn" onclick="doAuth()">Accedi</button>
+  </div>
+</div>
+
+<!-- Calendar -->
+<div id="screen-calendar" class="screen">
+  <!-- Calendar screen topbar with context-aware + button -->
+  <div class="topbar">
+    <div class="topbar-title">👩‍🦰 Stefalendario</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-go-today" onclick="goToday()" title="Oggi">🏠</button>
+      <button class="icon-btn" onclick="showScreen('settings')" title="Impostazioni">⚙️</button>
+      <button class="icon-btn" id="btn-add-main" onclick="onAddMainBtn()" title="Aggiungi" style="background:var(--primary);color:#fff;font-size:22px;font-weight:700">+</button>
+    </div>
+  </div>
+  <div class="cal-nav" id="cal-nav">
+    <button class="icon-btn" onclick="navPeriod(-1)" id="btn-prev">‹</button>
+    <div class="cal-nav-label" id="period-label"></div>
+    <button class="icon-btn" onclick="navPeriod(1)" id="btn-next">›</button>
+  </div>
+  <!-- Calendar grid/week/day area with swipe support -->
+  <div id="cal-wrapper">
+    <div class="swipe-arrow left" id="swipe-left">‹</div>
+    <div class="swipe-arrow right" id="swipe-right">›</div>
+    <div id="cal-area"></div>
+  </div>
+  <!-- Event list (hidden in programs view) -->
+  <div class="event-list" id="event-list"></div>
+  <!-- Programs list (visible only in programs view) -->
+  <div class="programs-list" id="programs-list" style="display:none"></div>
+  <!-- Bottom bar: tab switcher e filtri -->
+  <div class="bottom-bar">
+    <div class="filters" id="filters-bar">
+      <div class="chip" id="chip-partecipo" data-filter="__partecipo__" onclick="toggleFilter(this)">✅ Partecipo</div>
+      <div class="chip-clear" id="chip-clear" onclick="clearAllFilters()">Tutti ×</div>
+    </div>
+    <div class="view-tabs" id="view-tabs">
+      <button class="view-tab active" data-view="month" onclick="setView('month',this)">
+        <span class="tab-icon">📅</span><span class="tab-label">Mese</span>
+      </button>
+      <button class="view-tab" data-view="week" onclick="setView('week',this)">
+        <span class="tab-icon">📋</span><span class="tab-label">Settimana</span>
+      </button>
+      <button class="view-tab" data-view="day" onclick="setView('day',this)">
+        <span class="tab-icon">☀️</span><span class="tab-label">Giorno</span>
+      </button>
+      <button class="view-tab" data-view="programmi" onclick="setView('programmi',this)">
+        <span class="tab-icon">📂</span><span class="tab-label">Programmi</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Event Detail -->
+<div id="screen-detail" class="screen">
+  <div class="topbar">
+    <button class="icon-btn back-btn" onclick="historyBack()">←</button>
+    <div class="topbar-title">Evento</div>
+    <div style="width:38px"></div>
+  </div>
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;" id="detail-content"></div>
+</div>
+
+<!-- Event Form -->
+<div id="screen-form" class="screen">
+  <div class="topbar">
+    <button class="icon-btn back-btn" onclick="historyBack()">←</button>
+    <div class="topbar-title" id="form-title">Nuovo evento</div>
+    <button class="icon-btn" onclick="saveEventForm()" style="background:var(--primary);color:#fff">✓</button>
+  </div>
+  <div class="form-scroll" id="form-body"></div>
+</div>
+
+<!-- Settings -->
+<div id="screen-settings" class="screen">
+  <div class="topbar">
+    <button class="icon-btn back-btn" onclick="historyBack()">←</button>
+    <div class="topbar-title">Impostazioni</div>
+    <div style="width:38px"></div>
+  </div>
+  <div class="settings-scroll" id="settings-body"></div>
+</div>
+
+<!-- Program Form -->
+<div id="screen-program-form" class="screen">
+  <div class="topbar">
+    <button class="icon-btn back-btn" onclick="historyBack()">←</button>
+    <div class="topbar-title" id="pf-title">Nuovo programma</div>
+    <button class="icon-btn" onclick="saveProgramForm()" style="background:var(--primary);color:#fff">✓</button>
+  </div>
+  <div class="form-scroll" id="pf-body"></div>
+</div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-sheet"><div class="modal-handle"></div><div id="modal-content"></div></div>
+</div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,updateProfile,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import{getFirestore,collection,doc,addDoc,setDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,getDoc,deleteField}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ⚠️  IMPORTANTE: sostituisci appId con quello WEB dalla Firebase Console
+// Firebase → Project Settings → Le tue app → App web → Configurazione SDK
+const fbApp=initializeApp({
+  apiKey:"AIzaSyATEM0SUbMivlkensO5h-DGjXEDFyIQKYE",
+  authDomain:"stregalendario.firebaseapp.com",
+  projectId:"stregalendario",
+  storageBucket:"stregalendario.firebasestorage.app",
+  messagingSenderId:"1066064406702",
+  appId:"1:1066064406702:web:eba6110ca4977dfc7e653f"
+});
+const auth=getAuth(fbApp),db=getFirestore(fbApp);
+
+// ── State ──
+let currentUser=null,allEvents=[],allUsers=[],allPrograms=[];
+let allCategories={cinema:{label:"Cinema",emoji:"🎬",colorHex:"#FF6B6B"},musica:{label:"Musica",emoji:"🎵",colorHex:"#A78BFA"},teatro:{label:"Teatro",emoji:"🎭",colorHex:"#FBBF24"},natura:{label:"Natura",emoji:"🌿",colorHex:"#34D399"},drink:{label:"Drink/Cibo",emoji:"🍹",colorHex:"#FB923C"}};
+let activeFilters=new Set();
+let calView="month",calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
+let selDate=null,weekStart=null;
+let navHistory=[],unsubEvents=null,unsubCats=null,unsubUsers=null,unsubPrograms=null;
+let editingEventId=null,editingProgramId=null,isDark=false;
+// double-tap tracking per view tab
+let lastTabTap={month:0,week:0,day:0,programmi:0};
+
+// ── Helpers ──
+const p2=n=>String(n).padStart(2,'0');
+function todayStr(){const d=new Date();return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
+function dateStr(y,m,d){return`${y}-${p2(m+1)}-${p2(d)}`}
+function parseDate(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+function formatDate(s){return parseDate(s).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+function formatDateShort(s){return parseDate(s).toLocaleDateString('it-IT',{day:'numeric',month:'long'})}
+function catColor(k){return allCategories[k]?.colorHex||'#7C3AED'}
+function catEmoji(k){return allCategories[k]?.emoji||'📅'}
+function catLabel(k){return allCategories[k]?.label||k}
+function getWeekMonday(d){const dt=new Date(d);const day=dt.getDay()||7;dt.setDate(dt.getDate()-day+1);return dt}
+function dateToStr(d){return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
+window.escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── Navigation ──
+window.showScreen=function(id,push=true){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  if(push&&id!=='splash') navHistory.push(id);
+  if(id==='settings') renderSettings();
+  updateBarBackBtn();
+};
+window.historyBack=function(){
+  navHistory.pop();
+  showScreen(navHistory[navHistory.length-1]||'calendar',false);
+};
+function updateBarBackBtn(){
+  const btn=document.getElementById('bar-back-btn');if(!btn)return;
+  const canBack=navHistory.length>1;
+  btn.disabled=!canBack;
+}
+window.calBarBack=function(){
+  if(navHistory.length>1) historyBack();
+};
+
+// ── Toast ──
+window.showToast=function(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+};
+
+// ── Auth UI ──
+window.switchAuthTab=function(tab){
+  document.getElementById('tab-login').classList.toggle('active',tab==='login');
+  document.getElementById('tab-register').classList.toggle('active',tab==='register');
+  document.getElementById('auth-name').style.display=tab==='register'?'':'none';
+  document.getElementById('auth-confirm-wrap').style.display=tab==='register'?'':'none';
+  document.getElementById('auth-btn').textContent=tab==='login'?'Accedi':'Registrati';
+  document.getElementById('auth-error').textContent='';
+};
+window.togglePwd=function(id){const f=document.getElementById(id);f.type=f.type==='password'?'text':'password'};
+
+window.doAuth=async function(){
+  const isLogin=document.getElementById('tab-login').classList.contains('active');
+  const btn=document.getElementById('auth-btn'),errEl=document.getElementById('auth-error');
+  errEl.textContent='';btn.disabled=true;btn.textContent='…';
+  try{
+    const email=document.getElementById('auth-email').value.trim();
+    const pwd=document.getElementById('auth-pwd').value;
+    if(isLogin){await signInWithEmailAndPassword(auth,email,pwd);}
+    else{
+      const name=document.getElementById('auth-name').value.trim();
+      const conf=document.getElementById('auth-confirm').value;
+      if(!name) throw new Error("Inserisci il tuo nome");
+      if(pwd!==conf) throw new Error("Le password non coincidono");
+      const cred=await createUserWithEmailAndPassword(auth,email,pwd);
+      await updateProfile(cred.user,{displayName:name});
+      await setDoc(doc(db,'users',cred.user.uid),{name,email,displayName:name});
+    }
+  }catch(e){errEl.textContent=e.message||'Errore';btn.disabled=false;btn.textContent=isLogin?'Accedi':'Registrati';}
+};
+
+// Timeout di sicurezza: se Firebase non risponde entro 8s, vai al login
+const splashTimeout=setTimeout(()=>{
+  console.warn('Firebase timeout – check appId in config');
+  showScreen('auth',false);
+  navHistory=['auth'];
+},8000);
+
+onAuthStateChanged(auth,async user=>{
+  clearTimeout(splashTimeout);
+  currentUser=user;
+  if(user){
+    try{const name=user.displayName||user.email?.split('@')[0]||'Utente';await setDoc(doc(db,'users',user.uid),{name,email:user.email||'',displayName:name},{merge:true});}catch(_){}
+    startListeners();navHistory=['calendar'];showScreen('calendar',false);
+  }else{stopListeners();navHistory=['auth'];showScreen('auth',false);}
+});
+
+// ── Firestore ──
+function startListeners(){
+  stopListeners();
+  unsubEvents=onSnapshot(query(collection(db,'events'),orderBy('date','asc')),snap=>{
+    allEvents=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
+    renderCalendar();renderEventList();renderFilters();
+  });
+  unsubCats=onSnapshot(doc(db,'config','categories'),snap=>{
+    if(snap.exists()){
+      const custom={};
+      Object.entries(snap.data()).forEach(([k,v])=>{if(v&&v.label)custom[k]={label:v.label,emoji:v.emoji||'📌',colorHex:v.colorHex||'#7C3AED'};});
+      allCategories={cinema:{label:"Cinema",emoji:"🎬",colorHex:"#FF6B6B"},musica:{label:"Musica",emoji:"🎵",colorHex:"#A78BFA"},teatro:{label:"Teatro",emoji:"🎭",colorHex:"#FBBF24"},natura:{label:"Natura",emoji:"🌿",colorHex:"#34D399"},drink:{label:"Drink/Cibo",emoji:"🍹",colorHex:"#FB923C"},...custom};
+    }
+    renderFilters();renderCalendar();renderEventList();
+  });
+  unsubUsers=onSnapshot(collection(db,'users'),snap=>{allUsers=snap.docs.map(d=>({uid:d.id,...d.data()}));});
+  unsubPrograms=onSnapshot(query(collection(db,'programs'),orderBy('createdAt','desc')),snap=>{
+    allPrograms=snap.docs.map(d=>{
+      const p={id:d.id,...d.data()};
+      // normalize: se categories vuoto ma category presente, usa category
+      if((!p.categories||p.categories.length===0)&&p.category){p.categories=[p.category];}
+      if(!p.categories)p.categories=[];
+      return p;
+    });
+    if(calView==='programmi')renderPrograms();
+  });
+}
+function stopListeners(){[unsubEvents,unsubCats,unsubUsers,unsubPrograms].forEach(u=>{if(u)u();});unsubEvents=unsubCats=unsubUsers=unsubPrograms=null;}
+
+// ── Filters ──
+function renderFilters(){
+  const bar=document.getElementById('filters-bar');if(!bar)return;
+  const partecipo=document.getElementById('chip-partecipo');
+  const clearChip=document.getElementById('chip-clear');
+  const isProgramsView=(calView==='programmi');
+  // Disable "Partecipo" chip in programs view
+  if(partecipo){
+    partecipo.classList.toggle('disabled',isProgramsView);
+    partecipo.classList.toggle('active',!isProgramsView&&activeFilters.has('__partecipo__'));
+  }
+  // Remove all chips except partecipo and clear
+  Array.from(bar.children).forEach(c=>{if(c!==partecipo&&c!==clearChip)c.remove();});
+  Object.entries(allCategories).forEach(([key,cat])=>{
+    const chip=document.createElement('div');
+    chip.className='chip'+(activeFilters.has(key)?' active':'');
+    chip.dataset.filter=key;chip.textContent=`${cat.emoji} ${cat.label}`;
+    chip.onclick=()=>toggleFilter(chip);bar.insertBefore(chip,clearChip);
+  });
+  if(clearChip)clearChip.classList.toggle('visible',activeFilters.size>0);
+}
+window.toggleFilter=function(el){
+  const key=el.dataset.filter;
+  if(activeFilters.has(key))activeFilters.delete(key);else activeFilters.add(key);
+  el.classList.toggle('active',activeFilters.has(key));
+  const clearChip=document.getElementById('chip-clear');
+  if(clearChip)clearChip.classList.toggle('visible',activeFilters.size>0);
+  if(calView==='programmi'){renderPrograms();}
+  else{renderCalendar(0);renderEventList();}
+};
+window.clearAllFilters=function(){
+  activeFilters.clear();
+  document.querySelectorAll('#filters-bar .chip').forEach(c=>c.classList.remove('active'));
+  const clearChip=document.getElementById('chip-clear');
+  if(clearChip)clearChip.classList.remove('visible');
+  if(calView==='programmi'){renderPrograms();}
+  else{renderCalendar(0);renderEventList();}
+};
+function filteredEvents(){
+  const hasPart=activeFilters.has('__partecipo__');
+  const cats=[...activeFilters].filter(k=>k!=='__partecipo__');
+  return allEvents.filter(e=>{
+    const passPart=!hasPart||(currentUser&&(e.attendeeUids||[]).includes(currentUser.uid));
+    const passCat=cats.length===0||cats.includes(e.type);
+    return passPart&&passCat;
+  });
+}
+
+// ── Calendar render with slide animation ──
+function animateCal(dir){
+  // dir: 1=forward(left slide), -1=back(right slide), 0=no anim
+  const area=document.getElementById('cal-area');
+  if(!area||dir===0)return;
+  area.classList.remove('cal-slide-enter-left','cal-slide-enter-right');
+  void area.offsetWidth;// reflow
+  area.classList.add(dir>0?'cal-slide-enter-left':'cal-slide-enter-right');
+}
+
+function renderCalendar(dir=0){
+  const area=document.getElementById('cal-area');if(!area)return;
+  if(calView==='month') renderMonthGrid(area);
+  else if(calView==='week') renderWeekCol(area);
+  else renderDayHeader(area);
+  updatePeriodLabel();
+  if(dir!==0){
+    area.classList.remove('cal-slide-enter-left','cal-slide-enter-right');
+    void area.offsetWidth;
+    area.classList.add(dir>0?'cal-slide-enter-left':'cal-slide-enter-right');
+  }
+}
+
+function renderMonthGrid(area){
+  const today=todayStr();
+  const first=new Date(calYear,calMonth,1);
+  const lastDay=new Date(calYear,calMonth+1,0).getDate();
+  const startDow=(first.getDay()+6)%7;
+  let html=`<div class="cal-header">`;
+  ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].forEach(d=>html+=`<div class="cal-header-day">${d}</div>`);
+  html+=`</div><div class="cal-grid">`;
+  const prevLast=new Date(calYear,calMonth,0).getDate();
+  for(let i=0;i<startDow;i++){
+    const d=prevLast-startDow+1+i,m=calMonth===0?11:calMonth-1,y=calMonth===0?calYear-1:calYear;
+    html+=calCell(dateStr(y,m,d),'other-month');
+  }
+  for(let d=1;d<=lastDay;d++){
+    const ds=dateStr(calYear,calMonth,d);
+    html+=calCell(ds,(ds===today?'today':'')+(ds===selDate?' selected':''));
+  }
+  const rem=(startDow+lastDay)%7===0?0:7-(startDow+lastDay)%7;
+  for(let d=1;d<=rem;d++){
+    const m=calMonth===11?0:calMonth+1,y=calMonth===11?calYear+1:calYear;
+    html+=calCell(dateStr(y,m,d),'other-month');
+  }
+  html+=`</div>`;
+  area.innerHTML=html;
+}
+function calCell(ds,cls=''){
+  const day=parseInt(ds.split('-')[2]);
+  const dots=filteredEvents().filter(e=>e.date===ds).slice(0,4).map(e=>`<div class="cal-dot" style="background:${catColor(e.type)}"></div>`).join('');
+  return`<div class="cal-cell ${cls}" onclick="selectDate('${ds}')"><div class="cal-day-num">${day}</div><div class="cal-dots">${dots}</div></div>`;
+}
+
+function renderWeekCol(area){
+  if(!weekStart) weekStart=getWeekMonday(new Date());
+  const today=todayStr();
+  const names=['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+  let html='<div class="week-col">';
+  for(let i=0;i<7;i++){
+    const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
+    const ds=dateToStr(d);
+    const evs=filteredEvents().filter(e=>e.date===ds);
+    const cls=(ds===today?' today':'')+(ds===selDate?' selected':'');
+    const pills=evs.slice(0,2).map(e=>`<div class="week-pill" style="background:${catColor(e.type)}">${catEmoji(e.type)} ${escHtml(e.title||'Evento')}</div>`).join('');
+    const more=evs.length>2?`<div class="week-more">+${evs.length-2}</div>`:'';
+    html+=`<div class="week-row${cls}" onclick="selectDate('${ds}')">
+      <div class="week-row-date"><div class="week-row-dayname">${names[i]}</div><div class="week-row-daynum">${d.getDate()}</div></div>
+      <div class="week-row-events">${pills}${more}${evs.length===0?'<div class="week-more" style="color:var(--text-empty)">—</div>':''}</div>
+    </div>`;
+  }
+  html+='</div>';
+  area.innerHTML=html;
+}
+
+function renderDayHeader(area){
+  const ds=selDate||todayStr();
+  area.innerHTML=`<div class="day-header">📋 ${formatDate(ds)}</div>`;
+}
+
+function updatePeriodLabel(){
+  const MONTHS=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  let label='';
+  if(calView==='month') label=`${MONTHS[calMonth]} ${calYear}`;
+  else if(calView==='week'){
+    if(!weekStart)weekStart=getWeekMonday(new Date());
+    const end=new Date(weekStart);end.setDate(weekStart.getDate()+6);
+    label=`${weekStart.getDate()} – ${end.getDate()} ${MONTHS[end.getMonth()]}`;
+  } else label=formatDateShort(selDate||todayStr());
+  const el=document.getElementById('period-label');if(el)el.textContent=label;
+}
+
+// ── Event list ──
+function renderEventList(){
+  const el=document.getElementById('event-list');if(!el)return;
+  let evs=filteredEvents();
+  // Always show only the selected day (or today) in the event list below
+  const ds=selDate||todayStr();
+  evs=evs.filter(e=>e.date===ds);
+  if(evs.length===0){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon">🗓</div><div style="font-size:15px;font-weight:600;color:var(--text-sub)">Nessun evento</div><div style="font-size:13px;color:var(--text-empty)">Tocca + per aggiungere</div></div>`;
+    return;
+  }
+  const byDate={};
+  evs.forEach(e=>{if(!byDate[e.date])byDate[e.date]=[];byDate[e.date].push(e);});
+  let html='';
+  Object.keys(byDate).sort().forEach(date=>{
+    html+=`<div class="date-section-label">${formatDate(date)}</div>`;
+    byDate[date].forEach(e=>{
+      const me=currentUser&&(e.attendeeUids||[]).includes(currentUser.uid);
+      const color=catColor(e.type);
+      const avatars=(e.attendees||[]).slice(0,3).map((n,i)=>`<div class="attendee-avatar" style="z-index:${10-i}">${n.charAt(0).toUpperCase()}</div>`).join('');
+      const attCount=(e.attendees||[]).length;
+      html+=`<div class="event-card" onclick="openDetail('${e.id}')">
+        <div class="event-card-top">
+          <div class="event-type-badge" style="background:${color}22">${catEmoji(e.type)}</div>
+          <div class="event-card-info">
+            <div class="event-title">${escHtml(e.title||'Senza titolo')}</div>
+            <div class="event-meta">${e.time||''}${e.time&&e.place?' · ':''}${escHtml(e.place||'')}</div>
+          </div>
+          ${me?'<div class="attend-me-dot"></div>':''}
+        </div>
+        ${attCount>0?`<div class="event-attendees"><div style="display:flex">${avatars}</div><span>${attCount} partecipant${attCount===1?'e':'i'}</span></div>`:''}
+      </div>`;
+    });
+  });
+  el.innerHTML=html;
+}
+
+// ── Calendar nav + transitions ──
+window.selectDate=function(ds){
+  selDate=ds;
+  const d=parseDate(ds);calYear=d.getFullYear();calMonth=d.getMonth();
+  renderCalendar(0);renderEventList();
+};
+
+window.navPeriod=function(dir){
+  if(calView==='month'){
+    calMonth+=dir;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}
+  } else if(calView==='week'){
+    if(!weekStart)weekStart=getWeekMonday(new Date());
+    weekStart=new Date(weekStart);weekStart.setDate(weekStart.getDate()+dir*7);
+  } else {
+    const d=parseDate(selDate||todayStr());d.setDate(d.getDate()+dir);selDate=dateToStr(d);
+  }
+  renderCalendar(dir);renderEventList();
+  flashArrow(dir);
+};
+
+function flashArrow(dir){
+  const el=document.getElementById(dir>0?'swipe-right':'swipe-left');
+  if(!el)return;
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),400);
+}
+
+// Double-tap on tab = go to today for that view
+window.setView=function(v,btn){
+  const now=Date.now();
+  const doubleTap=(now-lastTabTap[v])<400;
+  lastTabTap[v]=now;
+
+  const prevView=calView;
+  calView=v;
+  document.querySelectorAll('.view-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+
+  // Clear filters when entering or exiting programmi view
+  if(v==='programmi'||prevView==='programmi'){
+    activeFilters.clear();
+  }
+
+  // Toggle visibility of calendar vs programs UI
+  const calWrapper=document.getElementById('cal-wrapper');
+  const calNav=document.getElementById('cal-nav');
+  const eventList=document.getElementById('event-list');
+  const programsList=document.getElementById('programs-list');
+  const isPrograms=(v==='programmi');
+  if(calWrapper)calWrapper.style.display=isPrograms?'none':'';
+  if(calNav)calNav.style.display=isPrograms?'none':'';
+  if(eventList)eventList.style.display=isPrograms?'none':'';
+  if(programsList)programsList.style.display=isPrograms?'':'none';
+  // Oggi button hidden in programs view
+  const btnToday=document.getElementById('btn-go-today');
+  if(btnToday)btnToday.style.visibility=isPrograms?'hidden':'visible';
+
+  renderFilters();
+
+  if(isPrograms){
+    renderPrograms();
+    return;
+  }
+
+  if(doubleTap){
+    // Double tap: center on today
+    const nd=new Date();
+    calYear=nd.getFullYear();calMonth=nd.getMonth();
+    selDate=todayStr();weekStart=getWeekMonday(nd);
+    showToast('Vai a oggi');
+  } else if(v==='week'){
+    weekStart=getWeekMonday(selDate?parseDate(selDate):new Date());
+  }
+  renderCalendar(doubleTap?0:0);renderEventList();
+};
+
+// Context-aware + button
+window.onAddMainBtn=function(){
+  if(calView==='programmi') openProgramForm(null);
+  else {
+    const d=(calView==='day')?(selDate||todayStr()):(selDate||null);
+    openEventForm(null,d);
+  }
+};
+
+window.goToday=function(){
+  const nd=new Date();
+  calYear=nd.getFullYear();calMonth=nd.getMonth();
+  selDate=todayStr();weekStart=getWeekMonday(nd);
+  renderCalendar(0);renderEventList();
+  showToast('Oggi');
+};
+
+// ── Touch swipe on cal-wrapper ──
+(function setupSwipe(){
+  const wrapper=document.getElementById('cal-wrapper');
+  if(!wrapper)return;
+  let startX=0,startY=0,moved=false;
+  wrapper.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;startY=e.touches[0].clientY;moved=false;},{passive:true});
+  wrapper.addEventListener('touchmove',e=>{
+    const dx=Math.abs(e.touches[0].clientX-startX),dy=Math.abs(e.touches[0].clientY-startY);
+    if(dx>dy&&dx>10){moved=true;}
+  },{passive:true});
+  wrapper.addEventListener('touchend',e=>{
+    if(!moved)return;
+    const dx=e.changedTouches[0].clientX-startX;
+    if(Math.abs(dx)>48) navPeriod(dx<0?1:-1);
+    moved=false;
+  },{passive:true});
+})();
+
+// ── Event Detail ──
+window.openDetail=function(eventId){
+  const event=allEvents.find(e=>e.id===eventId);if(!event)return;
+  renderDetail(event);showScreen('detail');
+};
+function renderDetail(event){
+  const me=currentUser&&(event.attendeeUids||[]).includes(currentUser.uid);
+  const color=catColor(event.type);
+  const mapsUrl=event.place?`https://maps.apple.com/?q=${encodeURIComponent(event.place+', Roma')}`:null;
+  document.getElementById('detail-content').innerHTML=`
+  <div class="detail-hero">
+    <div class="detail-hero-top">
+      <div class="detail-type-icon" style="background:${color}22">${catEmoji(event.type)}</div>
+      <div><div class="detail-title">${escHtml(event.title||'Senza titolo')}</div>
+      <div class="detail-inserter">${catLabel(event.type)} · da ${escHtml(event.insertedBy||'')}</div></div>
+    </div>
+  </div>
+  <div class="detail-body">
+    <div class="detail-row"><div class="detail-row-icon">📅</div><div class="detail-row-content"><div class="detail-row-label">Data e ora</div><div class="detail-row-value">${formatDate(event.date)}${event.time?' alle '+event.time:''}</div></div></div>
+    ${event.place?`<div class="detail-row"><div class="detail-row-icon">📍</div><div class="detail-row-content"><div class="detail-row-label">Luogo</div><div class="detail-row-value">${escHtml(event.place)}</div></div></div>`:''}
+    <div class="detail-row"><div class="detail-row-icon">👥</div><div class="detail-row-content"><div class="detail-row-label">Partecipanti (${(event.attendees||[]).length})</div><div class="detail-row-value">${escHtml((event.attendees||[]).join(', ')||'Nessuno')}</div></div></div>
+    ${event.description?`<div class="detail-row"><div class="detail-row-icon">📝</div><div class="detail-row-content"><div class="detail-row-label">Descrizione</div><div class="detail-row-value" style="white-space:pre-wrap">${escHtml(event.description)}</div></div></div>`:''}
+  </div>
+  ${mapsUrl?`<a href="${mapsUrl}" target="_blank" class="map-preview">🗺️ Apri in Mappe: ${escHtml(event.place)}</a>`:''}
+  <button class="attend-btn ${me?'attending':'not-attending'}" onclick="toggleAttend('${event.id}')">
+    ${me?'✅ Partecipo · tocca per rimuoverti':'➕ Partecipa'}
+  </button>
+  <div class="detail-actions">
+    <button class="btn-outline" onclick="openEventForm('${event.id}',null)">✏️ Modifica</button>
+    <button class="btn-danger" onclick="confirmDelete('${event.id}')">🗑 Elimina</button>
+  </div>`;
+}
+
+window.toggleAttend=async function(eventId){
+  if(!currentUser){showToast('Accedi per partecipare');return;}
+  const event=allEvents.find(e=>e.id===eventId);if(!event)return;
+  const uid=currentUser.uid,name=currentUser.displayName||currentUser.email||'Utente';
+  const isIn=(event.attendeeUids||[]).includes(uid);
+  const newUids=isIn?(event.attendeeUids||[]).filter(u=>u!==uid):[...(event.attendeeUids||[]),uid];
+  const newNames=isIn?(event.attendees||[]).filter(n=>n!==name):[...(event.attendees||[]),name];
+  try{
+    await updateDoc(doc(db,'events',eventId),{attendeeUids:newUids,attendees:newNames});
+    showToast(isIn?'Rimosso dalla lista':'Aggiunto ai partecipanti');
+    renderDetail({...event,attendeeUids:newUids,attendees:newNames});
+  }catch(e){showToast('Errore: '+e.message);}
+};
+
+window.confirmDelete=function(eventId){
+  showModal(`<div class="modal-title">Elimina evento?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Questa azione è irreversibile.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteEventNow('${eventId}')">Elimina</button></div>`);
+};
+window.deleteEventNow=async function(eventId){
+  closeModal();
+  try{await deleteDoc(doc(db,'events',eventId));showToast('Evento eliminato');historyBack();}
+  catch(e){showToast('Errore: '+e.message);}
+};
+
+// ── Event Form ──
+window.openEventForm=function(eventId,prefillDate){
+  editingEventId=eventId||null;
+  const existing=eventId?allEvents.find(e=>e.id===eventId):null;
+  document.getElementById('form-title').textContent=existing?'Modifica evento':'Nuovo evento';
+  const defaultDate=prefillDate||selDate||todayStr();
+  // No pre-selection of type
+  const cats=Object.entries(allCategories).map(([key,cat])=>`<div class="type-option${existing?.type===key?' selected':''}" data-type="${key}" onclick="selectType(this)"><span style="font-size:19px">${cat.emoji}</span><span style="color:${cat.colorHex}">${cat.label}</span></div>`).join('');
+  // partecipa toggle: checked only if user already in attendees
+  const iAmIn=existing&&currentUser&&(existing.attendeeUids||[]).includes(currentUser.uid);
+  document.getElementById('form-body').innerHTML=`
+    <div class="form-section"><div class="form-label">Titolo *</div><input id="f-title" class="form-field" type="text" placeholder="Nome evento" value="${escHtml(existing?.title||'')}" autocomplete="off"/></div>
+    <div class="form-section"><div class="form-label">Data *</div><input id="f-date" class="form-field" type="date" value="${existing?.date||defaultDate}"/></div>
+    <div class="form-section"><div class="form-label">Ora (opzionale)</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="f-time" class="form-field" type="time" value="${existing?.time||''}" style="flex:1"/>
+        <button type="button" onclick="clearTime()" style="padding:11px 13px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg-field);color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;white-space:nowrap">Rimuovi</button>
+      </div>
+    </div>
+    <div class="form-section"><div class="form-label">Tipo *</div><div class="type-grid">${cats}</div></div>
+    <div class="form-section"><div class="form-label">Luogo</div><input id="f-place" class="form-field" type="text" placeholder="Via, Piazza, Nome locale…" value="${escHtml(existing?.place||'')}"/></div>
+    <div class="form-section"><div class="form-label">Descrizione</div><textarea id="f-desc" class="form-field" rows="3" placeholder="Note, link, dettagli…">${escHtml(existing?.description||'')}</textarea></div>
+    <div class="form-section">
+      <button id="f-partecipa" class="attend-btn ${iAmIn?'attending':'not-attending'}" onclick="toggleFormPartecipa()" style="width:100%;margin:0">
+        ${iAmIn?'✅ Partecipo · tocca per rimuoverti':'➕ Partecipa a questo evento'}
+      </button>
+    </div>`;
+  showScreen('form');
+};
+window.clearTime=function(){const f=document.getElementById('f-time');if(f)f.value='';};
+window.selectType=function(el){document.querySelectorAll('.type-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');};
+window.toggleFormPartecipa=function(){
+  const btn=document.getElementById('f-partecipa');
+  const isIn=btn.classList.contains('attending');
+  btn.classList.toggle('attending',!isIn);btn.classList.toggle('not-attending',isIn);
+  btn.textContent=isIn?'➕ Partecipa a questo evento':'✅ Partecipo · tocca per rimuoverti';
+};
+window.saveEventForm=async function(){
+  const title=document.getElementById('f-title')?.value.trim();
+  const date=document.getElementById('f-date')?.value;
+  const typeEl=document.querySelector('.type-option.selected');
+  if(!title){showToast('Il titolo è obbligatorio');return;}
+  if(!date){showToast('La data è obbligatoria');return;}
+  if(!typeEl){showToast('Seleziona una categoria');return;}
+  const type=typeEl.dataset.type;
+  const time=document.getElementById('f-time')?.value||'';
+  const place=document.getElementById('f-place')?.value.trim()||'';
+  const desc=document.getElementById('f-desc')?.value.trim()||'';
+  // partecipa
+  const iAmIn=document.getElementById('f-partecipa')?.classList.contains('attending');
+  const uid=currentUser?.uid;
+  const uname=currentUser?.displayName||currentUser?.email||'Utente';
+  let attendeeUids=[...(allEvents.find(e=>e.id===editingEventId)?.attendeeUids||[])];
+  let attendeeNames=[...(allEvents.find(e=>e.id===editingEventId)?.attendees||[])];
+  if(iAmIn&&uid&&!attendeeUids.includes(uid)){attendeeUids.push(uid);attendeeNames.push(uname);}
+  if(!iAmIn&&uid){attendeeUids=attendeeUids.filter(u=>u!==uid);attendeeNames=attendeeNames.filter(n=>n!==uname);}
+  const data={title,date,time,type,place,description:desc,attendees:attendeeNames,attendeeUids};
+  try{
+    if(editingEventId){
+      const ex=allEvents.find(e=>e.id===editingEventId);
+      await setDoc(doc(db,'events',editingEventId),{...ex,...data});
+      showToast('Evento aggiornato');
+    }else{
+      const name=currentUser?.displayName||currentUser?.email||'Utente';
+      await addDoc(collection(db,'events'),{...data,insertedBy:name,insertedByUid:currentUser.uid});
+      showToast('Evento aggiunto');
+    }
+    historyBack();
+  }catch(e){showToast('Errore: '+e.message);}
+};
+
+// ── Settings ──
+function renderSettings(){
+  const body=document.getElementById('settings-body');if(!body)return;
+  const user=currentUser;
+  const catChips=Object.entries(allCategories).map(([key,cat])=>`<div class="cat-badge" style="background:${cat.colorHex}" onclick="openEditCategory('${key}')">${cat.emoji} ${cat.label}</div>`).join('');
+  const userRows=allUsers.map(u=>{const isMe=u.uid===user?.uid;return`<div class="user-row"><div class="user-avatar">${(u.displayName||u.name||'?').charAt(0).toUpperCase()}</div><div class="user-info"><div class="user-name">${escHtml(u.displayName||u.name||'Utente')}</div><div class="user-email">${escHtml(u.email||'')}</div></div>${isMe?'<div class="me-badge">tu</div>':''}</div>`;}).join('');
+  body.innerHTML=`
+    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v1.0 Cappotto de Matrix</div></div></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Profilo</div><div class="settings-card"><div class="user-row"><div class="user-avatar">${escHtml((user?.displayName||user?.email||'?').charAt(0).toUpperCase())}</div><div class="user-info"><div class="user-name">${escHtml(user?.displayName||'Utente')}</div><div class="user-email">${escHtml(user?.email||'')}</div></div></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Aspetto</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label">Tema scuro</div><div class="settings-row-sub">Di default è attivo il tema chiaro</div></div><button class="toggle ${isDark?'on':''}" id="theme-toggle" onclick="toggleTheme()"></button></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Categorie</div><div class="settings-card" style="padding:13px 14px"><div class="cat-list">${catChips}</div><button class="btn-primary" style="margin-top:12px;font-size:13px;padding:10px" onclick="openAddCategory()">+ Nuova categoria</button></div></div>
+    <div class="settings-section"><div class="settings-section-title">Utenti del gruppo</div><div class="settings-card">${userRows||'<div style="padding:14px;color:var(--text-muted);font-size:13px">Nessun utente</div>'}</div></div>
+    <div class="settings-section"><div class="settings-card"><div class="settings-row" onclick="confirmLogout()" style="cursor:pointer"><div class="settings-row-label" style="color:#dc2626">🚪 Esci dall\'account</div></div></div></div>`;
+}
+
+window.toggleTheme=function(){
+  isDark=!isDark;document.body.classList.toggle('dark',isDark);
+  const t=document.getElementById('theme-toggle');if(t)t.classList.toggle('on',isDark);
+  localStorage.setItem('strega_dark',isDark?'1':'0');
+};
+window.confirmLogout=function(){showModal(`<div class="modal-title">Esci dall'account?</div><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="doLogout()">Esci</button></div>`);};
+window.doLogout=async function(){closeModal();await signOut(auth);navHistory=['auth'];};
+
+window.openAddCategory=function(){
+  showModal(`<div class="modal-title">Nuova categoria</div>
+    <div style="display:flex;flex-direction:column;gap:11px">
+      <input id="nc-label" class="form-field" placeholder="Nome (es. Sport)" autocomplete="off"/>
+      <div class="form-label" style="margin-bottom:0">Emoji</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="nc-emoji-preview" style="width:44px;height:44px;border-radius:11px;background:var(--bg-field);border:1.5px solid var(--border);font-size:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0">📌</div>
+        <div class="emoji-grid" style="flex:1"><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎬">🎬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎵">🎵</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎭">🎭</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌿">🌿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍹">🍹</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⚽">⚽</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏀">🏀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎾">🎾</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏋️">🏋️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎨">🎨</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="📚">📚</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="✈️">✈️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎮">🎮</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎤">🎤</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍕">🍕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="☕">☕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎂">🎂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎁">🎁</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="💃">💃</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏖️">🏖️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎪">🎪</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏛️">🏛️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎠">🎠</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎡">🎡</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎢">🎢</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤿">🤿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚴">🚴</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🧗">🧗</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎻">🎻</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥳">🥳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎯">🎯</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎲">🎲</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🃏">🃏</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎰">🎰</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎳">🎳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎿">🎿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⛷️">⛷️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏂">🏂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤸">🤸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥊">🥊</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏇">🏇</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🛸">🛸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚀">🚀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌙">🌙</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⭐">⭐</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌈">🌈</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌺">🌺</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦋">🦋</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🐬">🐬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦁">🦁</div></div>
+      </div>
+      <input id="nc-color" class="form-field" type="color" value="#3B82F6" style="height:46px;cursor:pointer"/>
+    </div>
+    <div class="modal-actions" style="margin-top:12px"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" onclick="saveNewCategory()">Salva</button></div>`);
+};
+window.pickEmoji=function(el){
+  document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.remove('picked'));
+  el.classList.add('picked');
+  const prev=document.getElementById('nc-emoji-preview');
+  if(prev)prev.textContent=el.dataset.emoji;
+};
+window.saveNewCategory=async function(){
+  const label=document.getElementById('nc-label')?.value.trim();
+  const picked=document.querySelector('.emoji-btn.picked')?.dataset.emoji||'📌';
+  const emoji=picked;
+  const colorHex=document.getElementById('nc-color')?.value||'#3B82F6';
+  if(!label){showToast('Inserisci un nome');return;}
+  const key=label.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+  try{await setDoc(doc(db,'config','categories'),{[key]:{label,emoji,colorHex}},{merge:true});showToast('Categoria aggiunta');closeModal();}
+  catch(e){showToast('Errore: '+e.message);}
+};
+window.openEditCategory=function(key){
+  const cat=allCategories[key];if(!cat)return;
+  const isDefault=['cinema','musica','teatro','natura','drink'].includes(key);
+  showModal(`<div class="modal-title">Modifica: ${cat.emoji} ${cat.label}</div><div style="display:flex;flex-direction:column;gap:11px"><input id="ec-label" class="form-field" value="${escHtml(cat.label)}" placeholder="Nome" ${isDefault?'disabled':''}/><input id="ec-emoji" class="form-field" value="${escHtml(cat.emoji)}" placeholder="Emoji" maxlength="2"/><input id="ec-color" class="form-field" type="color" value="${cat.colorHex}" style="height:46px;cursor:pointer"/></div><div class="modal-actions">${!isDefault?`<button class="btn-secondary" style="border-color:#dc2626;color:#dc2626" onclick="deleteCategoryConfirm('${key}')">Elimina</button>`:'<div style="flex:1"></div>'}<button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" onclick="saveEditCategory('${key}','${isDefault}')">Salva</button></div>`);
+};
+window.saveEditCategory=async function(key,isDefault){
+  const emoji=document.getElementById('ec-emoji')?.value.trim()||'📌';
+  const colorHex=document.getElementById('ec-color')?.value||'#7C3AED';
+  const label=isDefault==='true'?allCategories[key].label:(document.getElementById('ec-label')?.value.trim()||allCategories[key].label);
+  try{await setDoc(doc(db,'config','categories'),{[key]:{label,emoji,colorHex}},{merge:true});showToast('Categoria aggiornata');closeModal();}
+  catch(e){showToast('Errore: '+e.message);}
+};
+window.deleteCategoryConfirm=function(key){
+  const cat=allCategories[key];
+  const otherCats=Object.entries(allCategories).filter(([k])=>k!==key);
+  const affectedCount=allEvents.filter(e=>e.type===key).length;
+  const reassignOpts=otherCats.map(([k,c])=>`<button class="btn-secondary" style="flex:none;width:100%;text-align:left;padding:10px 14px;display:flex;align-items:center;gap:8px" onclick="deleteCategoryNow('${key}',false,'${k}')"><span>${c.emoji}</span><span style="color:${c.colorHex};font-weight:700">${c.label}</span></button>`).join('');
+  const eventInfo=affectedCount>0?`<p style="color:var(--text-sub);font-size:13px;margin-bottom:10px">${affectedCount} event${affectedCount===1?'o':'i'} in questa categoria. Scegli cosa fare:</p>`:'<p style="color:var(--text-sub);font-size:13px;margin-bottom:10px">Nessun evento in questa categoria.</p>';
+  showModal(`<div class="modal-title">Elimina "${cat?.label}"?</div>${eventInfo}
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${affectedCount>0?reassignOpts:''}
+      <button class="btn-primary-sm" style="background:#dc2626;margin-top:4px" onclick="deleteCategoryNow('${key}',true,null)">🗑 Elimina categoria ${affectedCount>0?'e tutti gli eventi':''}</button>
+      <button class="btn-secondary" onclick="closeModal()">Annulla</button>
+    </div>`);
+};
+window.deleteCategoryNow=async function(key,deleteEvs,reassignTo){
+  closeModal();
+  try{
+    await updateDoc(doc(db,'config','categories'),{[key]:deleteField()});
+    if(deleteEvs)await Promise.all(allEvents.filter(e=>e.type===key).map(e=>deleteDoc(doc(db,'events',e.id))));
+    else if(reassignTo)await Promise.all(allEvents.filter(e=>e.type===key).map(e=>updateDoc(doc(db,'events',e.id),{type:reassignTo})));
+    showToast('Categoria eliminata');
+  }catch(e){showToast('Errore: '+e.message);}
+};
+
+window.showModal=function(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal-overlay').classList.add('open');};
+window.closeModal=function(e){if(e&&e.target!==document.getElementById('modal-overlay'))return;document.getElementById('modal-overlay').classList.remove('open');};
+
+// ── Programs ──────────────────────────────────────────────────────
+function filteredPrograms(){
+  const cats=[...activeFilters].filter(k=>k!=='__partecipo__');
+  if(cats.length===0) return allPrograms;
+  return allPrograms.filter(p=>{
+    const progCats=p.categories&&p.categories.length>0?p.categories:(p.category?[p.category]:[]);
+    return progCats.some(c=>cats.includes(c));
+  });
+}
+
+function formatRelative(ms){
+  const diff=Date.now()-ms,sec=Math.floor(diff/1000),min=Math.floor(sec/60),
+        hour=Math.floor(min/60),day=Math.floor(hour/24);
+  if(sec<60)return'ora';
+  if(min<60)return`${min}m fa`;
+  if(hour<24)return`${hour}h fa`;
+  if(day<7)return`${day}g fa`;
+  return new Date(ms).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'});
+}
+
+function renderPrograms(){
+  const el=document.getElementById('programs-list');if(!el)return;
+  const progs=filteredPrograms();
+  if(progs.length===0){
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📂</div><div style="font-size:15px;font-weight:600;color:var(--text-sub)">Nessun programma</div><div style="font-size:13px;color:var(--text-empty)">Premi + per aggiungerne uno</div></div>`;
+    return;
+  }
+  el.innerHTML=progs.map(p=>{
+    const cats=p.categories&&p.categories.length>0?p.categories:(p.category?[p.category]:[]);
+    const primary=cats[0]||'';
+    const primMeta=allCategories[primary];
+    const primColor=primMeta?.colorHex||'#7C3AED';
+    const primEmoji=primMeta?.emoji||'📌';
+    const isFile=p.sourceType==='file';
+    const typeLabel=isFile?'FILE':'LINK';
+    const typeIcon=isFile?'📎':'🔗';
+    const catChips=cats.slice(0,4).map(k=>{
+      const m=allCategories[k];
+      const cc=m?.colorHex||'#7C3AED';
+      const cl=m?.label||k;
+      const ce=m?.emoji||'📌';
+      return`<span class="program-cat-chip" style="background:${cc}22;border:1px solid ${cc}66;color:${cc}">${ce} ${cl}</span>`;
+    }).join('')+(cats.length>4?`<span style="font-size:9px;color:var(--text-muted);font-weight:700">+${cats.length-4}</span>`:'');
+    const durationRow=p.duration?`<div class="program-duration">⏱ ${escHtml(p.duration)}</div>`:'';
+    const footerDate=p.createdAt?` · ${formatRelative(p.createdAt)}`:'';
+    return`<div class="program-card" data-pid="${p.id}">
+      <div class="program-card-bar" style="background:${primColor}"></div>
+      <div class="program-card-body" onclick="openProgramUrl('${p.id}')">
+        <div class="program-card-row1">
+          <span style="font-size:16px">${primEmoji}</span>
+          <div class="program-card-title">${escHtml(p.title||'(senza titolo)')}</div>
+          <span class="program-type-badge" style="background:${primColor}22;border:1px solid ${primColor}55;color:${primColor}">${typeIcon} ${typeLabel}</span>
+        </div>
+        ${durationRow}
+        ${cats.length>0?`<div class="program-cats">${catChips}</div>`:''}
+        <div class="program-footer">✨ ${escHtml(p.insertedBy||'Utente')}${footerDate}</div>
+      </div>
+      <div class="program-actions">
+        <button class="program-action-btn" onclick="openProgramForm('${p.id}')" title="Modifica">✏️</button>
+        <button class="program-action-btn" onclick="confirmDeleteProgram('${p.id}')" title="Elimina">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openProgramUrl=function(pid){
+  const p=allPrograms.find(x=>x.id===pid);if(!p||!p.url)return;
+  try{window.open(p.url,'_blank');}catch(_){}
+};
+
+window.confirmDeleteProgram=function(pid){
+  const p=allPrograms.find(x=>x.id===pid);if(!p)return;
+  showModal(`<div class="modal-title">Elimina programma?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Verrà rimosso dalla lista per tutti.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteProgramNow('${pid}')">Elimina</button></div>`);
+};
+window.deleteProgramNow=async function(pid){
+  closeModal();
+  try{await deleteDoc(doc(db,'programs',pid));showToast('Programma eliminato');}
+  catch(e){showToast('Errore: '+e.message);}
+};
+
+// ── Program Form ──
+window.openProgramForm=function(pid){
+  editingProgramId=pid||null;
+  const existing=pid?allPrograms.find(x=>x.id===pid):null;
+  document.getElementById('pf-title').textContent=existing?'Modifica programma':'Nuovo programma';
+
+  const existCats=existing?((existing.categories&&existing.categories.length>0?existing.categories:(existing.category?[existing.category]:[]))):[]; 
+  const catOptions=Object.entries(allCategories).map(([key,cat])=>{
+    const sel=existCats.includes(key);
+    return`<div class="cat-multi-option${sel?' selected':''}" data-type="${key}" style="${sel?`border-color:${cat.colorHex};background:${cat.colorHex}18`:''}" onclick="toggleProgramCat(this,'${cat.colorHex}')">
+      <span style="font-size:18px">${cat.emoji}</span><span style="color:${sel?cat.colorHex:'var(--text-sub)'}">${cat.label}</span>
+    </div>`;
+  }).join('');
+
+  const srcType=existing?.sourceType||'link';
+  document.getElementById('pf-body').innerHTML=`
+    <div class="form-section">
+      <div class="form-label">Titolo *</div>
+      <input id="pf-title-inp" class="form-field" type="text" placeholder="Titolo programma" value="${escHtml(existing?.title||'')}" maxlength="140" autocomplete="off"/>
+    </div>
+    <div class="form-section">
+      <div class="form-label">Durata</div>
+      <input id="pf-duration" class="form-field" type="text" placeholder="es. 2h, 90 min…" value="${escHtml(existing?.duration||'')}" maxlength="140" autocomplete="off"/>
+    </div>
+    <div class="form-section">
+      <div class="form-label">Categorie</div>
+      <div class="cat-multi-grid" id="pf-cats">${catOptions}</div>
+    </div>
+    <div class="form-section">
+      <div class="form-label">Tipo sorgente</div>
+      <div class="pf-source-toggle">
+        <button class="pf-source-btn${srcType==='link'?' active':''}" id="pf-src-link" onclick="setPfSource('link')">🔗 Link</button>
+        <button class="pf-source-btn${srcType==='file'?' active':''}" id="pf-src-file" onclick="setPfSource('file')">📎 File URL</button>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-label">URL *</div>
+      <input id="pf-url" class="form-field" type="url" placeholder="https://…" value="${escHtml(existing?.url||'')}" autocomplete="off" inputmode="url"/>
+    </div>`;
+  showScreen('program-form');
+};
+window.toggleProgramCat=function(el,colorHex){
+  el.classList.toggle('selected');
+  const sel=el.classList.contains('selected');
+  el.style.borderColor=sel?colorHex:'var(--border)';
+  el.style.background=sel?colorHex+'18':'var(--bg-field)';
+  el.querySelector('span:last-child').style.color=sel?colorHex:'var(--text-sub)';
+};
+window.setPfSource=function(type){
+  document.getElementById('pf-src-link').classList.toggle('active',type==='link');
+  document.getElementById('pf-src-file').classList.toggle('active',type==='file');
+};
+window.saveProgramForm=async function(){
+  const title=document.getElementById('pf-title-inp')?.value.trim();
+  const url=document.getElementById('pf-url')?.value.trim();
+  if(!title){showToast('Il titolo è obbligatorio');return;}
+  if(!url){showToast("L'URL è obbligatorio");return;}
+  const duration=document.getElementById('pf-duration')?.value.trim()||'';
+  const srcType=document.getElementById('pf-src-link')?.classList.contains('active')?'link':'file';
+  const categories=[...document.querySelectorAll('.cat-multi-option.selected')].map(el=>el.dataset.type);
+  const name=currentUser?.displayName||currentUser?.email||'Utente';
+  const data={title,duration,categories,category:categories[0]||'',sourceType:srcType,url,insertedBy:name,insertedByUid:currentUser?.uid||''};
+  try{
+    if(editingProgramId){
+      const ex=allPrograms.find(x=>x.id===editingProgramId);
+      await setDoc(doc(db,'programs',editingProgramId),{...ex,...data});
+      showToast('Programma aggiornato');
+    }else{
+      await addDoc(collection(db,'programs'),{...data,createdAt:Date.now()});
+      showToast('Programma aggiunto');
+    }
+    historyBack();
+  }catch(e){showToast('Errore: '+e.message);}
+};
+
+
+function updateBBHeight(){
+  const bb=document.querySelector('.bottom-bar');
+  if(bb){
+    const h=bb.offsetHeight;
+    document.documentElement.style.setProperty('--bb-h',h+'px');
+  }
+}
+window.addEventListener('resize',updateBBHeight);
+setTimeout(updateBBHeight,200);
+
+// ── Auto-scroll focused input above bottom bar ──
+(function setupFocusScroll(){
+  function onFocus(e){
+    const el=e.target;
+    if(!['INPUT','TEXTAREA','SELECT'].includes(el.tagName)) return;
+    // Wait for keyboard to appear (iOS/Android delay)
+    setTimeout(()=>{
+      const bb=document.querySelector('.bottom-bar');
+      const bbH=bb?bb.offsetHeight:0;
+      const rect=el.getBoundingClientRect();
+      const viewH=window.innerHeight;
+      // If element bottom is hidden behind bottom bar, scroll it into view
+      if(rect.bottom > viewH - bbH - 12){
+        const scrollable=el.closest('.form-scroll,.auth-body,.modal-sheet,.settings-scroll,.event-list');
+        if(scrollable){
+          const scrollableRect=scrollable.getBoundingClientRect();
+          const targetScrollTop=scrollable.scrollTop + rect.bottom - (viewH - bbH - 20);
+          scrollable.scrollTo({top:targetScrollTop,behavior:'smooth'});
+        } else {
+          el.scrollIntoView({behavior:'smooth',block:'center'});
+        }
+      }
+    },350);
+  }
+  document.addEventListener('focus',onFocus,true);
+})();
+
+// ── Init ──
+(function(){
+  if(localStorage.getItem('strega_dark')==='1'){isDark=true;document.body.classList.add('dark');}
+  selDate=todayStr();weekStart=getWeekMonday(new Date());
+  // Ensure programs list is hidden on start (calendar is default view)
+  const programsList=document.getElementById('programs-list');
+  if(programsList)programsList.style.display='none';
+  setTimeout(updateBBHeight,100);
+})();
+</script>
+</body>
+</html>
