@@ -1379,7 +1379,6 @@ window.saveProgramForm=async function(){
   const duration=document.getElementById('pf-duration')?.value.trim()||'';
   const srcType=document.getElementById('pf-src-link')?.classList.contains('active')?'link':'file';
   const categories=[...document.querySelectorAll('.cat-multi-option.selected')].map(el=>el.dataset.type);
-  if(categories.length===0){showToast('Seleziona almeno una categoria');return;}
   const name=currentUser?.displayName||currentUser?.email||'Utente';
   const data={title,duration,categories,category:categories[0]||'',sourceType:srcType,url,insertedBy:name,insertedByUid:currentUser?.uid||''};
   try{
