@@ -716,7 +716,10 @@ function startListeners(){
   unsubUsers=onSnapshot(collection(db,'users'),snap=>{allUsers=snap.docs.map(d=>({uid:d.id,...d.data()}));});
   unsubPrograms=onSnapshot(query(collection(db,'programs'),orderBy('createdAt','desc')),snap=>{
     allPrograms=snap.docs.map(d=>{
-      const p={id:d.id,...d.data()};
+      const data=d.data();
+      // Bug2/3/4: l'id DEVE sempre venire da d.id (doc reference),
+      // mai dal campo interno del documento (che nei record Android è vuoto o assente).
+      const p={...data,id:d.id};
       // normalize: se categories vuoto ma category presente, usa category
       if((!p.categories||p.categories.length===0)&&p.category){p.categories=[p.category];}
       if(!p.categories)p.categories=[];
@@ -1148,7 +1151,7 @@ function renderSettings(){
   const catChips=Object.entries(allCategories).map(([key,cat])=>`<div class="cat-badge" style="background:${cat.colorHex}" onclick="openEditCategory('${key}')">${cat.emoji} ${cat.label}</div>`).join('');
   const userRows=allUsers.map(u=>{const isMe=u.uid===user?.uid;return`<div class="user-row"><div class="user-avatar">${(u.displayName||u.name||'?').charAt(0).toUpperCase()}</div><div class="user-info"><div class="user-name">${escHtml(u.displayName||u.name||'Utente')}</div><div class="user-email">${escHtml(u.email||'')}</div></div>${isMe?'<div class="me-badge">tu</div>':''}</div>`;}).join('');
   body.innerHTML=`
-    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v1.0 Cappotto de Matrix</div></div></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v2.0 sarde alla beccaficu</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Profilo</div><div class="settings-card"><div class="user-row"><div class="user-avatar">${escHtml((user?.displayName||user?.email||'?').charAt(0).toUpperCase())}</div><div class="user-info"><div class="user-name">${escHtml(user?.displayName||'Utente')}</div><div class="user-email">${escHtml(user?.email||'')}</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Aspetto</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label">Tema scuro</div><div class="settings-row-sub">Di default è attivo il tema chiaro</div></div><button class="toggle ${isDark?'on':''}" id="theme-toggle" onclick="toggleTheme()"></button></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Categorie</div><div class="settings-card" style="padding:13px 14px"><div class="cat-list">${catChips}</div><button class="btn-primary" style="margin-top:12px;font-size:13px;padding:10px" onclick="openAddCategory()">+ Nuova categoria</button></div></div>
@@ -1298,7 +1301,9 @@ function renderPrograms(){
 
 window.openProgramUrl=function(pid){
   const p=allPrograms.find(x=>x.id===pid);if(!p||!p.url)return;
-  try{window.open(p.url,'_blank');}catch(_){}
+  let url=p.url;
+  if(!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(url)){url='https://'+url;}
+  try{window.open(url,'_blank');}catch(_){}
 };
 
 window.confirmDeleteProgram=function(pid){
@@ -1307,6 +1312,7 @@ window.confirmDeleteProgram=function(pid){
 };
 window.deleteProgramNow=async function(pid){
   closeModal();
+  if(!pid){showToast('Errore: ID programma non valido');return;}
   try{await deleteDoc(doc(db,'programs',pid));showToast('Programma eliminato');}
   catch(e){showToast('Errore: '+e.message);}
 };
@@ -1348,7 +1354,7 @@ window.openProgramForm=function(pid){
     </div>
     <div class="form-section">
       <div class="form-label">URL *</div>
-      <input id="pf-url" class="form-field" type="url" placeholder="https://…" value="${escHtml(existing?.url||'')}" autocomplete="off" inputmode="url"/>
+      <input id="pf-url" class="form-field" type="text" placeholder="https://… oppure www.esempio.it" value="${escHtml(existing?.url||'')}" autocomplete="off" inputmode="url"/>
     </div>`;
   showScreen('program-form');
 };
@@ -1365,9 +1371,11 @@ window.setPfSource=function(type){
 };
 window.saveProgramForm=async function(){
   const title=document.getElementById('pf-title-inp')?.value.trim();
-  const url=document.getElementById('pf-url')?.value.trim();
+  let url=document.getElementById('pf-url')?.value.trim();
   if(!title){showToast('Il titolo è obbligatorio');return;}
   if(!url){showToast("L'URL è obbligatorio");return;}
+  // Bug1: normalizza URL — aggiunge https:// se non ha già un protocollo
+  if(url&&!/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(url)){url='https://'+url;}
   const duration=document.getElementById('pf-duration')?.value.trim()||'';
   const srcType=document.getElementById('pf-src-link')?.classList.contains('active')?'link':'file';
   const categories=[...document.querySelectorAll('.cat-multi-option.selected')].map(el=>el.dataset.type);
@@ -1375,8 +1383,10 @@ window.saveProgramForm=async function(){
   const data={title,duration,categories,category:categories[0]||'',sourceType:srcType,url,insertedBy:name,insertedByUid:currentUser?.uid||''};
   try{
     if(editingProgramId){
-      const ex=allPrograms.find(x=>x.id===editingProgramId);
-      await setDoc(doc(db,'programs',editingProgramId),{...ex,...data});
+      if(!editingProgramId){showToast('Errore: ID programma non valido');return;}
+      // Bug3: updateDoc invece di setDoc+spread, così non sovrascriviamo campi come createdAt
+      // e non c'è rischio di usare un id interno sbagliato
+      await updateDoc(doc(db,'programs',editingProgramId),data);
       showToast('Programma aggiornato');
     }else{
       await addDoc(collection(db,'programs'),{...data,createdAt:Date.now()});
