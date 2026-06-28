@@ -500,7 +500,7 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
   <div class="splash-logo">👩‍🦰</div>
   <div class="splash-name">Stefalendario</div>
   <div style="font-size:13px;color:#BBB3D4;text-align:center;margin-top:4px;letter-spacing:.01em">calendario romano degli eventi tra amici</div>
-  <div style="font-size:11px;color:#7878A0;text-align:center;margin-top:3px;font-style:italic">v2.0 sarde alla beccaficu</div>
+  <div style="font-size:11px;color:#7878A0;text-align:center;margin-top:3px;font-style:italic">v3.0 tai cip</div>
   <div class="spinner" style="margin-top:18px"></div>
 </div>
 
@@ -510,7 +510,7 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
     <div class="auth-logo">👩‍🦰</div>
     <div class="auth-app-name">Stefalendario</div>
     <div class="auth-tagline">calendario romano degli eventi tra amici</div>
-    <div style="font-size:11px;color:#7878A0;margin-top:4px;font-style:italic">v2.0 sarde alla beccaficu</div>
+    <div style="font-size:11px;color:#7878A0;margin-top:4px;font-style:italic">v3.0 tai cip</div>
   </div>
   <div>
     <div class="auth-tabs">
@@ -1553,7 +1553,7 @@ function renderSettings(){
   const catChips=Object.entries(allCategories).map(([key,cat])=>`<div class="cat-badge" style="background:${cat.colorHex}" onclick="openEditCategory('${key}')">${cat.emoji} ${cat.label}</div>`).join('');
   const userRows=allUsers.map(u=>{const isMe=u.uid===user?.uid;return`<div class="user-row"><div class="user-avatar">${(u.displayName||u.name||'?').charAt(0).toUpperCase()}</div><div class="user-info"><div class="user-name">${escHtml(u.displayName||u.name||'Utente')}</div><div class="user-email">${escHtml(u.email||'')}</div></div>${isMe?'<div class="me-badge">tu</div>':''}</div>`;}).join('');
   body.innerHTML=`
-    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v2.0 sarde alla beccaficu</div></div></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v3.0 tai cip</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Profilo</div><div class="settings-card"><div class="user-row"><div class="user-avatar">${escHtml((user?.displayName||user?.email||'?').charAt(0).toUpperCase())}</div><div class="user-info"><div class="user-name">${escHtml(user?.displayName||'Utente')}</div><div class="user-email">${escHtml(user?.email||'')}</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Aspetto</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label">Tema scuro</div><div class="settings-row-sub">Di default è attivo il tema chiaro</div></div><button class="toggle ${isDark?'on':''}" id="theme-toggle" onclick="toggleTheme()"></button></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Categorie</div><div class="settings-card" style="padding:13px 14px"><div class="cat-list">${catChips}</div><button class="btn-primary" style="margin-top:12px;font-size:13px;padding:10px" onclick="openAddCategory()">+ Nuova categoria</button></div></div>
