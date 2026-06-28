@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Stefalendario"/>
+<meta name="theme-color" content="#7C3AED"/>
+<link rel="manifest" href="/web/manifest.json"/>
+<link rel="apple-touch-icon" href="/web/icon-192.png"/>
 <title>Stefalendario</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -92,6 +96,7 @@ body.dark{
 .filters{
   display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px 5px;
   border-bottom:1px solid var(--border);
+  overflow:hidden;align-content:flex-start;
 }
 .chip{
   padding:4px 11px;border-radius:20px;
@@ -383,6 +388,28 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 .toast{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(14px);background:var(--bg-card);border:1px solid var(--border);color:var(--text-main);padding:9px 18px;border-radius:18px;font-size:13px;font-weight:500;opacity:0;transition:all .2s;z-index:200;white-space:nowrap;box-shadow:var(--shadow)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ── iOS Install Banner ── */
+#ios-install-banner{
+  position:fixed;bottom:calc(var(--bb-h,80px) + 8px);left:12px;right:12px;
+  background:var(--bg-card);border:1.5px solid var(--primary);border-radius:16px;
+  padding:13px 14px;display:flex;align-items:center;gap:11px;
+  box-shadow:0 4px 24px rgba(124,58,237,.18);z-index:190;
+  animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+#ios-install-banner .ib-icon{font-size:28px;flex-shrink:0}
+#ios-install-banner .ib-text{flex:1;min-width:0}
+#ios-install-banner .ib-title{font-size:13px;font-weight:700;color:var(--text-main)}
+#ios-install-banner .ib-sub{font-size:11px;color:var(--text-sub);margin-top:2px;line-height:1.35}
+#ios-install-banner .ib-close{font-size:18px;color:var(--text-muted);padding:4px;flex-shrink:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#notif-permission-btn{
+  display:none;position:fixed;bottom:calc(var(--bb-h,80px) + 8px);left:12px;right:12px;
+  background:var(--primary);color:#fff;border:none;border-radius:16px;
+  padding:14px 18px;font-size:14px;font-weight:700;cursor:pointer;z-index:190;
+  box-shadow:0 4px 20px rgba(124,58,237,.35);
+  animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+}
+
 /* ── Splash ── */
 #screen-splash{background:#0A0A14;align-items:center;justify-content:center;gap:10px;height:100dvh}
 .splash-logo{font-size:80px;animation:pulse 1.5s ease infinite}
@@ -395,6 +422,30 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 
 /* ── Programs view ── */
 .programs-list{flex:1;overflow-y:auto;padding:8px 12px calc(var(--bb-h,120px) + 8px);-webkit-overflow-scrolling:touch;min-height:0}
+/* ── Programs search bar ── */
+#programs-search-bar{
+  padding:6px 12px 4px;background:var(--bg-card);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.programs-search-inner{
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg-deep);border:1.5px solid var(--border);border-radius:10px;
+  padding:7px 10px;transition:border-color .15s;
+}
+.programs-search-inner:focus-within{border-color:var(--primary);}
+.programs-search-icon{font-size:14px;flex-shrink:0;opacity:.6}
+#programs-search-input{
+  flex:1;background:transparent;border:none;outline:none;
+  font-size:13px;color:var(--text-main);min-width:0;
+}
+#programs-search-input::placeholder{color:var(--text-muted)}
+/* rimuovi la X nativa del tipo search su webkit */
+#programs-search-input::-webkit-search-cancel-button{display:none}
+.programs-search-clear{
+  background:none;border:none;color:var(--text-muted);
+  font-size:13px;padding:2px 4px;cursor:pointer;flex-shrink:0;
+  -webkit-tap-highlight-color:transparent;line-height:1;
+}
 .program-card{
   display:flex;align-items:center;gap:0;
   background:var(--bg-card);border-radius:var(--radius);
@@ -509,6 +560,17 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
   </div>
   <!-- Event list (hidden in programs view) -->
   <div class="event-list" id="event-list"></div>
+  <!-- Search bar (visible only in programs view) -->
+  <div id="programs-search-bar" style="display:none">
+    <div class="programs-search-inner">
+      <span class="programs-search-icon">🔍</span>
+      <input id="programs-search-input" type="search" placeholder="Ricerca programma"
+        autocomplete="off" autocorrect="off" spellcheck="false"
+        oninput="onProgramSearch(this.value)"
+        onsearch="onProgramSearch(this.value)"/>
+      <button id="programs-search-clear" class="programs-search-clear" onclick="clearProgramSearch()" style="display:none">✕</button>
+    </div>
+  </div>
   <!-- Programs list (visible only in programs view) -->
   <div class="programs-list" id="programs-list" style="display:none"></div>
   <!-- Bottom bar: tab switcher e filtri -->
@@ -577,6 +639,19 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Banner "Aggiungi alla schermata Home" per iOS (mostrato solo se necessario) -->
+<div id="ios-install-banner" style="display:none">
+  <div class="ib-icon">📅</div>
+  <div class="ib-text">
+    <div class="ib-title">Installa Stefalendario</div>
+    <div class="ib-sub">Per ricevere le notifiche su iPhone:<br>tocca <strong>⎋ Condividi</strong> → <strong>Aggiungi alla schermata Home</strong></div>
+  </div>
+  <div class="ib-close" onclick="dismissIosBanner()">✕</div>
+</div>
+
+<!-- Pulsante richiesta permesso notifiche (Android/Desktop, mostrato dopo login) -->
+<button id="notif-permission-btn" onclick="requestNotifPermission()">🔔 Attiva le notifiche</button>
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal-sheet"><div class="modal-handle"></div><div id="modal-content"></div></div>
 </div>
@@ -585,18 +660,22 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,updateProfile,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import{getFirestore,collection,doc,addDoc,setDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,getDoc,deleteField}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import{getMessaging,getToken,onMessage}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
 
 // ⚠️  IMPORTANTE: sostituisci appId con quello WEB dalla Firebase Console
 // Firebase → Project Settings → Le tue app → App web → Configurazione SDK
 const fbApp=initializeApp({
-  apiKey:"AIzaSyATEM0SUbMivlkensO5h-DGjXEDFyIQKYE",
+  apiKey:"AIzaSyBL-Dii8MNDzSby7F-E_A-mGFXVrsKV6t8",
   authDomain:"stregalendario.firebaseapp.com",
   projectId:"stregalendario",
   storageBucket:"stregalendario.firebasestorage.app",
   messagingSenderId:"1066064406702",
-  appId:"1:1066064406702:web:eba6110ca4977dfc7e653f"
+  appId:"1:1066064406702:web:0bb2201f4929b3c77e653f"
 });
 const auth=getAuth(fbApp),db=getFirestore(fbApp);
+// Firebase Messaging (web push) — inizializzato dopo il login
+let messaging=null;
+try{messaging=getMessaging(fbApp);}catch(e){console.warn('Messaging non supportato:',e.message);}
 
 // ── State ──
 let currentUser=null,allEvents=[],allUsers=[],allPrograms=[];
@@ -608,6 +687,7 @@ let navHistory=[],unsubEvents=null,unsubCats=null,unsubUsers=null,unsubPrograms=
 let editingEventId=null,editingProgramId=null,isDark=false;
 // double-tap tracking per view tab
 let lastTabTap={month:0,week:0,day:0,programmi:0};
+let programSearchQuery='';
 
 // ── Helpers ──
 const p2=n=>String(n).padStart(2,'0');
@@ -622,6 +702,247 @@ function catLabel(k){return allCategories[k]?.label||k}
 function getWeekMonday(d){const dt=new Date(d);const day=dt.getDay()||7;dt.setDate(dt.getDate()-day+1);return dt}
 function dateToStr(d){return`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
 window.escHtml=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── Web Push & Notifiche ──────────────────────────────────────────────────────
+//
+// VAPID key: recuperala da Firebase Console →
+//   Project Settings → Cloud Messaging → Web Push certificates → Chiave pubblica
+// Sostituisci il placeholder qui sotto con la tua.
+const VAPID_KEY = 'BOs7dxBZ49NTXRtd6ewi-KWUTua6FJPT-CoJgTgAf0mqO0P1oElNUVT4UX-A_fCXtLFhk1_0cq9v-XmEXBUNxiw';
+
+const isIos=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
+const isPwa=()=>window.navigator.standalone===true
+  ||window.matchMedia('(display-mode: standalone)').matches;
+
+// Controlla se il browser supporta le notifiche
+function notifSupported(){
+  return typeof Notification!=='undefined'&&'serviceWorker'in navigator&&'PushManager'in window;
+}
+
+// Registra il service worker (necessario sia per iOS PWA sia per Android/Desktop)
+async function registerSW(){
+  if(!('serviceWorker'in navigator))return null;
+  try{
+    const reg=await navigator.serviceWorker.register('/web/firebase-messaging-sw.js',{scope:'/web/'});
+    console.log('[SW] Registrato:',reg.scope);
+    return reg;
+  }catch(e){console.error('[SW] Errore registrazione:',e);return null;}
+}
+
+// Sottoscrive ai topic FCM — il backend (Apps Script) manda su "events" e "programs"
+// Sul web non possiamo fare subscribeToTopic() direttamente (è solo Android SDK),
+// ma il token FCM viene salvato in Firestore e usato per mandare a tutti i token web.
+// ALTERNATIVA CONSIGLIATA: usa FCM HTTP v1 con target "token" invece di "topic"
+// oppure salva il token su Firestore e lascia che Apps Script lo legga.
+// Qui salviamo il token in Firestore sotto users/{uid}/fcmTokens
+async function saveFcmToken(token){
+  if(!currentUser||!token)return;
+  try{
+    await setDoc(
+      doc(db,'users',currentUser.uid),
+      {webFcmToken:token, webFcmUpdatedAt: Date.now()},
+      {merge:true}
+    );
+    console.log('[FCM] Token salvato per uid=',currentUser.uid);
+  }catch(e){console.error('[FCM] Errore salvataggio token:',e);}
+}
+
+// Inizializza web push dopo il login
+async function initWebPush(){
+  if(!messaging){return;}
+
+  // iOS non-PWA: mostra il banner "aggiungi alla schermata home"
+  if(isIos()&&!isPwa()){
+    showIosBanner();
+    return;
+  }
+
+  // Browser senza supporto notifiche
+  if(!notifSupported()){
+    console.log('[FCM] Notifiche non supportate in questo browser');
+    return;
+  }
+
+  // Permesso già negato: non insistere
+  if(Notification.permission==='denied'){
+    console.log('[FCM] Permesso notifiche negato dall\'utente');
+    return;
+  }
+
+  // Permesso già concesso: registra SW e ottieni token silenziosamente
+  if(Notification.permission==='granted'){
+    const reg=await registerSW();
+    if(!reg)return;
+    await obtainFcmToken(reg);
+    listenForegroundMessages();
+    listenSwMessages();
+    return;
+  }
+
+  // Permesso non ancora chiesto: mostra il pulsante (non chiediamo subito
+  // per non disturbare — l'utente lo vedrà dopo il login)
+  const btn=document.getElementById('notif-permission-btn');
+  if(btn) btn.style.display='block';
+}
+
+// Ottieni il token FCM e salvalo
+async function obtainFcmToken(swRegistration){
+  if(!messaging)return;
+  try{
+    const token=await getToken(messaging,{
+      vapidKey:VAPID_KEY,
+      serviceWorkerRegistration:swRegistration
+    });
+    if(token){
+      console.log('[FCM] Token ottenuto:',token.substring(0,20)+'…');
+      await saveFcmToken(token);
+    }else{
+      console.warn('[FCM] Nessun token — permesso mancante?');
+    }
+  }catch(e){
+    console.error('[FCM] Errore getToken:',e);
+  }
+}
+
+// Gestisce i messaggi FCM con app in foreground (pagina aperta e visibile)
+function listenForegroundMessages(){
+  if(!messaging)return;
+  onMessage(messaging,payload=>{
+    console.log('[FCM] Foreground message:',payload);
+    const data=payload.data||{};
+    const type=data.type||'';
+    const id=data.id||'';
+    if(!type||!id)return;
+
+    // Sopprimi se l'utente è l'inseritore
+    if(data.senderUid&&currentUser&&data.senderUid===currentUser.uid)return;
+
+    const title=data.notifTitle||(type==='event'?'Nuovo evento 🎉':'Nuovo programma 📂');
+    const body=data.notifBody||(type==='event'?'Tocca per vedere i dettagli':'Tocca per vedere i programmi');
+
+    // Mostra una notifica in-app cliccabile (toast arricchito)
+    showInAppNotif(title,body,type,id,data.eventDate||'');
+  });
+}
+
+// Ascolta i postMessage inviati dal Service Worker (click notifica con app già aperta)
+function listenSwMessages(){
+  navigator.serviceWorker.addEventListener('message',event=>{
+    const msg=event.data;
+    if(!msg||msg.type!=='FCM_NOTIFICATION_CLICK')return;
+    console.log('[SW→App] Click notifica ricevuto:',msg);
+    handleNotifNavigation(msg.notifType,msg.notifId,msg.notifDate||'');
+  });
+}
+
+// Naviga alla schermata giusta (specchio della logica Android MainActivity)
+function handleNotifNavigation(type,id,eventDate){
+  if(!type||!id)return;
+  if(!currentUser){
+    window._pendingNotif={type,id,eventDate};
+    return;
+  }
+
+  if(type==='event'){
+    // Stesso comportamento Android (cold + warm start):
+    // vai sempre alla VISTA GIORNO sulla data dell'evento.
+    // Non apriamo il dettaglio direttamente — l'utente vede tutti
+    // gli eventi del giorno, come fa CalendarScreen su Android.
+    if(eventDate){
+      const[y,m,d]=eventDate.split('-').map(Number);
+      calYear=y; calMonth=m-1; selDate=eventDate;
+      showScreen('calendar',false);
+      setView('day',document.querySelector('[data-view="day"]'));
+    } else {
+      // Fallback: la data manca nel payload — vai al calendario
+      showScreen('calendar',false);
+    }
+
+  } else if(type==='program'){
+    // Android: calendar?highlightProgramId={id}
+    // → switcha a tab Programmi + scroll + highlight per 2.5s
+    showScreen('calendar',false);
+    setView('programmi',document.querySelector('[data-view="programmi"]'));
+    // Aspetta il render della lista prima di fare scroll+highlight
+    const tryHighlight=(attempts)=>{
+      const card=document.querySelector(`.program-card[data-pid="${id}"]`);
+      if(card){
+        card.scrollIntoView({behavior:'smooth',block:'center'});
+        card.style.outline='2.5px solid var(--primary)';
+        card.style.outlineOffset='2px';
+        card.style.transition='outline .2s,outline-offset .2s';
+        setTimeout(()=>{card.style.outline='';card.style.outlineOffset='';},2500);
+      } else if(attempts>0){
+        // Lista non ancora renderizzata — riprova ogni 100ms, max 10 volte
+        setTimeout(()=>tryHighlight(attempts-1),100);
+      }
+    };
+    setTimeout(()=>tryHighlight(10),150);
+  }
+}
+
+// Controlla i parametri URL al caricamento (cold start da click notifica)
+function handleNotifFromUrl(){
+  const params=new URLSearchParams(window.location.search);
+  const type=params.get('notif_type');
+  const id=params.get('notif_id');
+  const date=params.get('notif_date')||'';
+  if(type&&id){
+    // Pulisci URL senza ricaricare la pagina
+    const cleanUrl=window.location.pathname;
+    window.history.replaceState({},'',cleanUrl);
+    // Salva per navigare dopo che i dati Firestore sono caricati
+    window._pendingNotif={type,id,eventDate:date};
+  }
+}
+
+// Toast arricchito per notifiche in foreground (l'utente è nella pagina)
+function showInAppNotif(title,body,type,id,eventDate){
+  const old=document.getElementById('inapp-notif');
+  if(old)old.remove();
+  const el=document.createElement('div');
+  el.id='inapp-notif';
+  el.style.cssText='position:fixed;bottom:calc(var(--bb-h,80px) + 8px);left:12px;right:12px;'
+    +'background:var(--bg-card);border:1.5px solid var(--primary);border-radius:16px;'
+    +'padding:13px 14px;display:flex;align-items:center;gap:11px;'
+    +'box-shadow:0 4px 24px rgba(124,58,237,.22);z-index:195;cursor:pointer;'
+    +'animation:slideUp .3s cubic-bezier(.4,0,.2,1);';
+  el.innerHTML=`<div style="font-size:24px;flex-shrink:0">${type==='event'?'🎉':'📂'}</div>`
+    +`<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:var(--text-main)">${escHtml(title)}</div>`
+    +`<div style="font-size:11px;color:var(--text-sub);margin-top:1px">${escHtml(body)}</div></div>`
+    +`<div style="font-size:16px;color:var(--text-muted);padding:4px">›</div>`;
+  el.onclick=()=>{el.remove();handleNotifNavigation(type,id,eventDate);};
+  document.body.appendChild(el);
+  setTimeout(()=>{if(el.parentNode)el.remove();},6000);
+}
+
+// Richiesta esplicita permesso (chiamata dal pulsante)
+window.requestNotifPermission=async function(){
+  const btn=document.getElementById('notif-permission-btn');
+  if(btn)btn.style.display='none';
+  const perm=await Notification.requestPermission();
+  if(perm==='granted'){
+    const reg=await registerSW();
+    if(reg)await obtainFcmToken(reg);
+    listenForegroundMessages();
+    listenSwMessages();
+    showToast('🔔 Notifiche attivate!');
+  } else {
+    showToast('Notifiche non attivate');
+  }
+};
+
+// Banner iOS
+function showIosBanner(){
+  if(localStorage.getItem('ios_banner_dismissed'))return;
+  const el=document.getElementById('ios-install-banner');
+  if(el) el.style.display='flex';
+}
+window.dismissIosBanner=function(){
+  const el=document.getElementById('ios-install-banner');
+  if(el) el.style.display='none';
+  localStorage.setItem('ios_banner_dismissed','1');
+};
 
 // ── Navigation ──
 window.showScreen=function(id,push=true){
@@ -695,6 +1016,10 @@ onAuthStateChanged(auth,async user=>{
   if(user){
     try{const name=user.displayName||user.email?.split('@')[0]||'Utente';await setDoc(doc(db,'users',user.uid),{name,email:user.email||'',displayName:name},{merge:true});}catch(_){}
     startListeners();navHistory=['calendar'];showScreen('calendar',false);
+    // Avvia web push dopo il login
+    initWebPush();
+    // Gestisci notifica da cold start (URL params) o notifica in arrivo
+    handleNotifFromUrl();
   }else{stopListeners();navHistory=['auth'];showScreen('auth',false);}
 });
 
@@ -702,8 +1027,15 @@ onAuthStateChanged(auth,async user=>{
 function startListeners(){
   stopListeners();
   unsubEvents=onSnapshot(query(collection(db,'events'),orderBy('date','asc')),snap=>{
-    allEvents=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
+    allEvents=snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>a.date===b.date?(a.time||'').localeCompare(b.time||''):a.date.localeCompare(b.date));
     renderCalendar();renderEventList();renderFilters();
+    // Naviga alla destinazione pendente (cold start da notifica) appena gli eventi sono caricati
+    if(window._pendingNotif){
+      const p=window._pendingNotif;
+      window._pendingNotif=null;
+      // Piccolo delay per lasciar completare il render
+      setTimeout(()=>handleNotifNavigation(p.type,p.id,p.eventDate||''),200);
+    }
   });
   unsubCats=onSnapshot(doc(db,'config','categories'),snap=>{
     if(snap.exists()){
@@ -717,15 +1049,18 @@ function startListeners(){
   unsubPrograms=onSnapshot(query(collection(db,'programs'),orderBy('createdAt','desc')),snap=>{
     allPrograms=snap.docs.map(d=>{
       const data=d.data();
-      // Bug2/3/4: l'id DEVE sempre venire da d.id (doc reference),
-      // mai dal campo interno del documento (che nei record Android è vuoto o assente).
       const p={...data,id:d.id};
-      // normalize: se categories vuoto ma category presente, usa category
       if((!p.categories||p.categories.length===0)&&p.category){p.categories=[p.category];}
       if(!p.categories)p.categories=[];
       return p;
     });
     if(calView==='programmi')renderPrograms();
+    // Gestisci pendingNotif di tipo "program" (i programmi arrivano in questo snapshot)
+    if(window._pendingNotif&&window._pendingNotif.type==='program'){
+      const p=window._pendingNotif;
+      window._pendingNotif=null;
+      setTimeout(()=>handleNotifNavigation(p.type,p.id,p.eventDate||''),200);
+    }
   });
 }
 function stopListeners(){[unsubEvents,unsubCats,unsubUsers,unsubPrograms].forEach(u=>{if(u)u();});unsubEvents=unsubCats=unsubUsers=unsubPrograms=null;}
@@ -736,7 +1071,6 @@ function renderFilters(){
   const partecipo=document.getElementById('chip-partecipo');
   const clearChip=document.getElementById('chip-clear');
   const isProgramsView=(calView==='programmi');
-  // Disable "Partecipo" chip in programs view
   if(partecipo){
     partecipo.classList.toggle('disabled',isProgramsView);
     partecipo.classList.toggle('active',!isProgramsView&&activeFilters.has('__partecipo__'));
@@ -746,10 +1080,60 @@ function renderFilters(){
   Object.entries(allCategories).forEach(([key,cat])=>{
     const chip=document.createElement('div');
     chip.className='chip'+(activeFilters.has(key)?' active':'');
-    chip.dataset.filter=key;chip.textContent=`${cat.emoji} ${cat.label}`;
+    chip.dataset.filter=key;
+    chip.dataset.emoji=cat.emoji;
+    chip.dataset.label=cat.label;
+    chip.title=cat.label;
+    chip.textContent=`${cat.emoji} ${cat.label}`;
     chip.onclick=()=>toggleFilter(chip);bar.insertBefore(chip,clearChip);
   });
   if(clearChip)clearChip.classList.toggle('visible',activeFilters.size>0);
+  // Doppio rAF: il primo attende il paint, il secondo garantisce che il layout sia stabile
+  requestAnimationFrame(()=>requestAnimationFrame(()=>fitChipsTo2Rows(bar)));
+}
+
+function fitChipsTo2Rows(bar){
+  // Chip con data-label = categorie (abbreviabili)
+  const catChips=Array.from(bar.querySelectorAll('.chip[data-label]'));
+  if(!catChips.length)return;
+
+  bar.style.overflow='visible';
+  bar.style.maxHeight='none';
+
+  // Conta righe guardando offsetTop di TUTTI i figli visibili (Partecipo + categorie + Tutti ×)
+  const countRows=()=>{
+    const allVisible=Array.from(bar.children).filter(c=>c.offsetWidth>0);
+    const tops=new Set(allVisible.map(c=>c.offsetTop));
+    return tops.size;
+  };
+
+  // Step 1: label completo
+  catChips.forEach(c=>{ c.textContent=`${c.dataset.emoji} ${c.dataset.label}`; });
+  if(countRows()<=2){ applyMaxHeight(bar); return; }
+
+  // Step 2: accorcia progressivamente da 8 a 3 caratteri
+  for(let n=8;n>=3;n--){
+    catChips.forEach(c=>{
+      const l=c.dataset.label;
+      c.textContent=`${c.dataset.emoji} ${l.length>n?l.slice(0,n-1)+'…':l}`;
+    });
+    if(countRows()<=2){ applyMaxHeight(bar); return; }
+  }
+
+  // Step 3: solo emoji
+  catChips.forEach(c=>{ c.textContent=c.dataset.emoji; });
+  applyMaxHeight(bar);
+}
+
+function applyMaxHeight(bar){
+  // Misura l'altezza reale occupata dalle prime 2 righe di tutti i figli visibili
+  const allVisible=Array.from(bar.children).filter(c=>c.offsetWidth>0);
+  const tops=[...new Set(allVisible.map(c=>c.offsetTop))].sort((a,b)=>a-b);
+  const row2Top=tops[1]??tops[0];
+  const chipH=allVisible[0].offsetHeight;
+  const paddingBottom=5;
+  bar.style.maxHeight=`${row2Top+chipH+paddingBottom}px`;
+  bar.style.overflow='hidden';
 }
 window.toggleFilter=function(el){
   const key=el.dataset.filter;
@@ -757,6 +1141,9 @@ window.toggleFilter=function(el){
   el.classList.toggle('active',activeFilters.has(key));
   const clearChip=document.getElementById('chip-clear');
   if(clearChip)clearChip.classList.toggle('visible',activeFilters.size>0);
+  // Ricalcola fit perché "Tutti ×" è ora visibile e occupa spazio
+  const bar=document.getElementById('filters-bar');
+  if(bar)requestAnimationFrame(()=>requestAnimationFrame(()=>fitChipsTo2Rows(bar)));
   if(calView==='programmi'){renderPrograms();}
   else{renderCalendar(0);renderEventList();}
 };
@@ -765,6 +1152,9 @@ window.clearAllFilters=function(){
   document.querySelectorAll('#filters-bar .chip').forEach(c=>c.classList.remove('active'));
   const clearChip=document.getElementById('chip-clear');
   if(clearChip)clearChip.classList.remove('visible');
+  // Ricalcola fit perché "Tutti ×" è ora nascosto
+  const bar=document.getElementById('filters-bar');
+  if(bar)requestAnimationFrame(()=>requestAnimationFrame(()=>fitChipsTo2Rows(bar)));
   if(calView==='programmi'){renderPrograms();}
   else{renderCalendar(0);renderEventList();}
 };
@@ -948,17 +1338,27 @@ window.setView=function(v,btn){
   if(v==='programmi'||prevView==='programmi'){
     activeFilters.clear();
   }
+  // Reset ricerca testuale quando si esce dalla tab programmi
+  if(prevView==='programmi'&&v!=='programmi'){
+    programSearchQuery='';
+    const inp=document.getElementById('programs-search-input');
+    const clr=document.getElementById('programs-search-clear');
+    if(inp)inp.value='';
+    if(clr)clr.style.display='none';
+  }
 
   // Toggle visibility of calendar vs programs UI
   const calWrapper=document.getElementById('cal-wrapper');
   const calNav=document.getElementById('cal-nav');
   const eventList=document.getElementById('event-list');
   const programsList=document.getElementById('programs-list');
+  const searchBar=document.getElementById('programs-search-bar');
   const isPrograms=(v==='programmi');
   if(calWrapper)calWrapper.style.display=isPrograms?'none':'';
   if(calNav)calNav.style.display=isPrograms?'none':'';
   if(eventList)eventList.style.display=isPrograms?'none':'';
   if(programsList)programsList.style.display=isPrograms?'':'none';
+  if(searchBar)searchBar.style.display=isPrograms?'':'none';
   // Oggi button hidden in programs view
   const btnToday=document.getElementById('btn-go-today');
   if(btnToday)btnToday.style.visibility=isPrograms?'hidden':'visible';
@@ -1133,11 +1533,13 @@ window.saveEventForm=async function(){
   try{
     if(editingEventId){
       const ex=allEvents.find(e=>e.id===editingEventId);
-      await setDoc(doc(db,'events',editingEventId),{...ex,...data});
+      // updateDoc invece di setDoc: preserva createdAt e id originali senza sovrascriverli
+      await updateDoc(doc(db,'events',editingEventId),{...data,insertedBy:ex?.insertedBy||'',insertedByUid:ex?.insertedByUid||''});
       showToast('Evento aggiornato');
     }else{
       const name=currentUser?.displayName||currentUser?.email||'Utente';
-      await addDoc(collection(db,'events'),{...data,insertedBy:name,insertedByUid:currentUser.uid});
+      // id:'' allineato ad Android (data class default), createdAt come timestamp ms
+      await addDoc(collection(db,'events'),{...data,insertedBy:name,insertedByUid:currentUser.uid,id:'',createdAt:Date.now()});
       showToast('Evento aggiunto');
     }
     historyBack();
@@ -1254,11 +1656,35 @@ function formatRelative(ms){
   return new Date(ms).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'});
 }
 
+// ── Program Search ──
+window.onProgramSearch=function(val){
+  programSearchQuery=val||'';
+  const clr=document.getElementById('programs-search-clear');
+  if(clr)clr.style.display=programSearchQuery?'block':'none';
+  renderPrograms();
+};
+window.clearProgramSearch=function(){
+  programSearchQuery='';
+  const inp=document.getElementById('programs-search-input');
+  const clr=document.getElementById('programs-search-clear');
+  if(inp){inp.value='';inp.focus();}
+  if(clr)clr.style.display='none';
+  renderPrograms();
+};
+
 function renderPrograms(){
   const el=document.getElementById('programs-list');if(!el)return;
-  const progs=filteredPrograms();
+  // Applica prima i filtri categoria, poi la ricerca testuale (come Android)
+  let progs=filteredPrograms();
+  if(programSearchQuery.trim()){
+    const q=programSearchQuery.trim().toLowerCase();
+    progs=progs.filter(p=>(p.title||'').toLowerCase().includes(q));
+  }
   if(progs.length===0){
-    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📂</div><div style="font-size:15px;font-weight:600;color:var(--text-sub)">Nessun programma</div><div style="font-size:13px;color:var(--text-empty)">Premi + per aggiungerne uno</div></div>`;
+    const isSearch=programSearchQuery.trim().length>0;
+    el.innerHTML=`<div class="empty-state"><div class="empty-state-icon">${isSearch?'🔍':'📂'}</div>`
+      +`<div style="font-size:15px;font-weight:600;color:var(--text-sub)">${isSearch?'Nessun risultato':'Nessun programma'}</div>`
+      +`<div style="font-size:13px;color:var(--text-empty)">${isSearch?"Prova con un'altra parola":'Premi + per aggiungerne uno'}</div></div>`;
     return;
   }
   el.innerHTML=progs.map(p=>{
