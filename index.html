@@ -410,6 +410,8 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
   animation:slideUp .3s cubic-bezier(.4,0,.2,1);
 }
 
+@keyframes ptr-spin{to{transform:rotate(360deg)}}
+.ptr-spinning{animation:ptr-spin .7s linear infinite!important;}
 /* ── Splash ── */
 #screen-splash{background:#0A0A14;align-items:center;justify-content:center;gap:10px;height:100dvh}
 .splash-logo{font-size:80px;animation:pulse 1.5s ease infinite}
@@ -500,7 +502,7 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
   <div class="splash-logo">👩‍🦰</div>
   <div class="splash-name">Stefalendario</div>
   <div style="font-size:13px;color:#BBB3D4;text-align:center;margin-top:4px;letter-spacing:.01em">calendario romano degli eventi tra amici</div>
-  <div style="font-size:11px;color:#7878A0;text-align:center;margin-top:3px;font-style:italic">v3.0 tai cip</div>
+  <div style="font-size:11px;color:#7878A0;text-align:center;margin-top:3px;font-style:italic">v3.1 tai cip</div>
   <div class="spinner" style="margin-top:18px"></div>
 </div>
 
@@ -510,7 +512,7 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
     <div class="auth-logo">👩‍🦰</div>
     <div class="auth-app-name">Stefalendario</div>
     <div class="auth-tagline">calendario romano degli eventi tra amici</div>
-    <div style="font-size:11px;color:#7878A0;margin-top:4px;font-style:italic">v3.0 tai cip</div>
+    <div style="font-size:11px;color:#7878A0;margin-top:4px;font-style:italic">v3.1 tai cip</div>
   </div>
   <div>
     <div class="auth-tabs">
@@ -538,6 +540,18 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 
 <!-- Calendar -->
 <div id="screen-calendar" class="screen">
+  <div id="ptr-indicator" style="
+    position:absolute;top:0;left:0;right:0;
+    display:flex;align-items:center;justify-content:center;
+    height:0;overflow:hidden;transition:height .2s;z-index:50;
+    background:var(--bg-main);
+  ">
+    <div id="ptr-spinner" style="
+      width:28px;height:28px;border:3px solid var(--border);
+      border-top-color:var(--primary);border-radius:50%;
+      transition:transform .2s;
+    "></div>
+  </div>
   <!-- Calendar screen topbar with context-aware + button -->
   <div class="topbar">
     <div class="topbar-title">👩‍🦰 Stefalendario</div>
@@ -943,6 +957,76 @@ window.dismissIosBanner=function(){
   if(el) el.style.display='none';
   localStorage.setItem('ios_banner_dismissed','1');
 };
+
+// ── Pull to Refresh ──────────────────────────────────────────────────────────
+(function(){
+  const THRESHOLD = 72;   // px di pull per scatenare il refresh
+  const MAX_PULL  = 96;
+  let startY=0, pulling=false, triggered=false;
+
+  const indicator = ()=>document.getElementById('ptr-indicator');
+  const spinner   = ()=>document.getElementById('ptr-spinner');
+
+  function isAtTop(){
+    // Controlla se l'elemento scrollabile della vista corrente è in cima
+    const scroller = calView==='programmi'
+      ? document.getElementById('programs-list')
+      : document.getElementById('event-list');
+    if(scroller && scroller.scrollTop>2) return false;
+    const calWrap = document.getElementById('cal-wrapper');
+    if(calWrap && calWrap.scrollTop>2) return false;
+    return true;
+  }
+
+  document.addEventListener('touchstart', e=>{
+    if(calView==='settings'||calView==='form') return;
+    startY = e.touches[0].clientY;
+    pulling = false; triggered = false;
+  },{passive:true});
+
+  document.addEventListener('touchmove', e=>{
+    const scr = document.getElementById('screen-calendar');
+    if(!scr||!scr.classList.contains('active')) return;
+    if(!isAtTop()) return;
+
+    const dy = e.touches[0].clientY - startY;
+    if(dy<=0){ pulling=false; return; }
+
+    pulling = true;
+    const h = Math.min(dy*0.5, MAX_PULL);
+    const ind = indicator(); const sp = spinner();
+    if(!ind||!sp) return;
+    ind.style.height = h+'px';
+    // Rotazione proporzionale al pull prima del trigger
+    if(!triggered) sp.style.transform = `rotate(${(h/THRESHOLD)*360}deg)`;
+    if(h>=THRESHOLD && !triggered){
+      triggered=true;
+      sp.classList.add('ptr-spinning');
+    }
+  },{passive:true});
+
+  document.addEventListener('touchend', ()=>{
+    if(!pulling) return;
+    pulling=false;
+    const ind=indicator(); const sp=spinner();
+    if(!ind||!sp) return;
+    if(triggered){
+      // Esegui il refresh: riavvia i listener Firestore
+      stopListeners();
+      startListeners();
+      showToast('🔄 Aggiornato');
+      setTimeout(()=>{
+        ind.style.height='0';
+        sp.classList.remove('ptr-spinning');
+        sp.style.transform='';
+        triggered=false;
+      },700);
+    } else {
+      ind.style.height='0';
+      sp.style.transform='';
+    }
+  },{passive:true});
+})();
 
 // ── Navigation ──
 window.showScreen=function(id,push=true){
@@ -1553,7 +1637,7 @@ function renderSettings(){
   const catChips=Object.entries(allCategories).map(([key,cat])=>`<div class="cat-badge" style="background:${cat.colorHex}" onclick="openEditCategory('${key}')">${cat.emoji} ${cat.label}</div>`).join('');
   const userRows=allUsers.map(u=>{const isMe=u.uid===user?.uid;return`<div class="user-row"><div class="user-avatar">${(u.displayName||u.name||'?').charAt(0).toUpperCase()}</div><div class="user-info"><div class="user-name">${escHtml(u.displayName||u.name||'Utente')}</div><div class="user-email">${escHtml(u.email||'')}</div></div>${isMe?'<div class="me-badge">tu</div>':''}</div>`;}).join('');
   body.innerHTML=`
-    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v3.0 tai cip</div></div></div></div></div>
+    <div class="settings-section"><div class="settings-section-title">Versione</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label" style="font-style:italic;color:var(--text-muted)">v3.1 tai cip</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Profilo</div><div class="settings-card"><div class="user-row"><div class="user-avatar">${escHtml((user?.displayName||user?.email||'?').charAt(0).toUpperCase())}</div><div class="user-info"><div class="user-name">${escHtml(user?.displayName||'Utente')}</div><div class="user-email">${escHtml(user?.email||'')}</div></div></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Aspetto</div><div class="settings-card"><div class="settings-row"><div class="settings-row-info"><div class="settings-row-label">Tema scuro</div><div class="settings-row-sub">Di default è attivo il tema chiaro</div></div><button class="toggle ${isDark?'on':''}" id="theme-toggle" onclick="toggleTheme()"></button></div></div></div>
     <div class="settings-section"><div class="settings-section-title">Categorie</div><div class="settings-card" style="padding:13px 14px"><div class="cat-list">${catChips}</div><button class="btn-primary" style="margin-top:12px;font-size:13px;padding:10px" onclick="openAddCategory()">+ Nuova categoria</button></div></div>
@@ -1576,7 +1660,7 @@ window.openAddCategory=function(){
       <div class="form-label" style="margin-bottom:0">Emoji</div>
       <div style="display:flex;gap:8px;align-items:center">
         <div id="nc-emoji-preview" style="width:44px;height:44px;border-radius:11px;background:var(--bg-field);border:1.5px solid var(--border);font-size:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0">📌</div>
-        <div class="emoji-grid" style="flex:1"><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎬">🎬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎵">🎵</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎭">🎭</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌿">🌿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍹">🍹</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⚽">⚽</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏀">🏀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎾">🎾</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏋️">🏋️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎨">🎨</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="📚">📚</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="✈️">✈️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎮">🎮</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎤">🎤</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍕">🍕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="☕">☕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎂">🎂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎁">🎁</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="💃">💃</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏖️">🏖️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎪">🎪</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏛️">🏛️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎠">🎠</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎡">🎡</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎢">🎢</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤿">🤿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚴">🚴</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🧗">🧗</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎻">🎻</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥳">🥳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎯">🎯</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎲">🎲</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🃏">🃏</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎰">🎰</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎳">🎳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎿">🎿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⛷️">⛷️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏂">🏂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤸">🤸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥊">🥊</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏇">🏇</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🛸">🛸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚀">🚀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌙">🌙</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⭐">⭐</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌈">🌈</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌺">🌺</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦋">🦋</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🐬">🐬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦁">🦁</div></div>
+        <div class="emoji-grid" style="flex:1"><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎬">🎬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎵">🎵</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎭">🎭</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌿">🌿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍹">🍹</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⚽">⚽</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏀">🏀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏐">🏐</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎾">🎾</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏋️">🏋️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎨">🎨</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="📚">📚</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="✈️">✈️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎮">🎮</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎤">🎤</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍕">🍕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🍝">🍝</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="☕">☕</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎂">🎂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎁">🎁</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="💃">💃</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏖️">🏖️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎪">🎪</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏛️">🏛️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎠">🎠</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎡">🎡</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎢">🎢</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤿">🤿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚴">🚴</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🧗">🧗</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎻">🎻</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥳">🥳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎯">🎯</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎲">🎲</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🃏">🃏</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎰">🎰</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎳">🎳</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🎿">🎿</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⛷️">⛷️</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏂">🏂</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🤸">🤸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🥊">🥊</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🏇">🏇</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🛸">🛸</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🚀">🚀</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌙">🌙</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="⭐">⭐</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌈">🌈</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🌺">🌺</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦋">🦋</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🐬">🐬</div><div class="emoji-btn" onclick="pickEmoji(this)" data-emoji="🦁">🦁</div></div>
       </div>
       <input id="nc-color" class="form-field" type="color" value="#3B82F6" style="height:46px;cursor:pointer"/>
     </div>
