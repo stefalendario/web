@@ -66,8 +66,10 @@ body.dark{
 #screen-calendar{
   display:none;flex-direction:column;
   height:100dvh;overflow:hidden;
+  will-change:transform;
 }
 #screen-calendar.active{display:flex}
+#screen-calendar.ptr-snap{transition:transform .3s cubic-bezier(.4,0,.2,1);}
 
 .cal-nav{
   flex-shrink:0;
@@ -961,44 +963,64 @@ window.dismissIosBanner=function(){
 // ── Pull to Refresh ──────────────────────────────────────────────────────────
 (function(){
   const THRESHOLD = 80;
-  const MAX_PULL  = 100;
+  const MAX_PULL  = 110;
   let startX=0,startY=0,triggered=false,active=false,direction=null;
 
   const indicator = ()=>document.getElementById('ptr-indicator');
   const spinner   = ()=>document.getElementById('ptr-spinner');
+  const scr       = ()=>document.getElementById('screen-calendar');
 
   function scrollerAtTop(){
-    const id = calView==='programmi'?'programs-list':'event-list';
-    const el = document.getElementById(id);
-    return !el || el.scrollTop<=0;
+    const id=calView==='programmi'?'programs-list':'event-list';
+    const el=document.getElementById(id);
+    return !el||el.scrollTop<=0;
   }
 
-  const screen = ()=>document.getElementById('screen-calendar');
+  function setDrag(h){
+    const s=scr();if(!s)return;
+    s.classList.remove('ptr-snap');
+    s.style.transform=h>0?`translateY(${h}px)`:'';
+  }
+
+  function snapBack(callback){
+    const s=scr();if(!s)return;
+    s.classList.add('ptr-snap');
+    s.style.transform='';
+    s.addEventListener('transitionend',function done(){
+      s.removeEventListener('transitionend',done);
+      s.classList.remove('ptr-snap');
+      callback&&callback();
+    });
+  }
 
   function onTouchStart(e){
     startX=e.touches[0].clientX;
     startY=e.touches[0].clientY;
-    triggered=false; active=false; direction=null;
+    triggered=false;active=false;direction=null;
   }
 
   function onTouchMove(e){
     const dx=e.touches[0].clientX-startX;
     const dy=e.touches[0].clientY-startY;
-
-    // Determina direzione al primo movimento significativo
-    if(!direction && (Math.abs(dx)>8||Math.abs(dy)>8)){
-      direction = Math.abs(dy)>Math.abs(dx) ? 'vertical' : 'horizontal';
+    if(!direction&&(Math.abs(dx)>8||Math.abs(dy)>8)){
+      direction=Math.abs(dy)>Math.abs(dx)?'vertical':'horizontal';
     }
-    if(direction!=='vertical') return;  // lascia gli swipe orizzontali liberi
-    if(dy<=0){active=false;return;}
+    if(direction!=='vertical')return;
+    if(dy<=0){
+      if(active){setDrag(0);active=false;}
+      return;
+    }
     if(!scrollerAtTop()){active=false;return;}
-
     active=true;
+
+    // Resistenza: più tiri più è difficile
+    const h=Math.min(dy*0.45,MAX_PULL);
+    setDrag(h);
+
     const ind=indicator();const sp=spinner();
     if(!ind||!sp)return;
-    const h=Math.min(dy*0.45,MAX_PULL);
-    ind.style.height=h+'px';
-    if(!triggered) sp.style.transform=`rotate(${(h/THRESHOLD)*360}deg)`;
+    ind.style.height=Math.min(h,56)+'px';
+    if(!triggered)sp.style.transform=`rotate(${(h/THRESHOLD)*360}deg)`;
     if(h>=THRESHOLD&&!triggered){
       triggered=true;
       sp.classList.add('ptr-spinning');
@@ -1007,27 +1029,27 @@ window.dismissIosBanner=function(){
 
   function onTouchEnd(){
     if(!active){direction=null;return;}
-    active=false; direction=null;
+    active=false;direction=null;
     const ind=indicator();const sp=spinner();
-    if(!ind||!sp)return;
+
     if(triggered){
+      // Tieni la pagina abbassata un momento, poi snap e refresh
+      snapBack(()=>{
+        if(ind)ind.style.height='0';
+        if(sp){sp.classList.remove('ptr-spinning');sp.style.transform='';}
+        triggered=false;
+      });
       stopListeners();startListeners();
       showToast('🔄 Aggiornato');
-      setTimeout(()=>{
-        ind.style.height='0';
-        sp.classList.remove('ptr-spinning');
-        sp.style.transform='';
-        triggered=false;
-      },700);
     }else{
-      ind.style.height='0';
-      sp.style.transform='';
+      snapBack();
+      if(ind)ind.style.height='0';
+      if(sp)sp.style.transform='';
     }
   }
 
   window.addEventListener('load',()=>{
-    const s=screen();
-    if(!s)return;
+    const s=scr();if(!s)return;
     s.addEventListener('touchstart',onTouchStart,{passive:true});
     s.addEventListener('touchmove',onTouchMove,{passive:true});
     s.addEventListener('touchend',onTouchEnd,{passive:true});
