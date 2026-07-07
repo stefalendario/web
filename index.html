@@ -960,60 +960,48 @@ window.dismissIosBanner=function(){
 
 // ── Pull to Refresh ──────────────────────────────────────────────────────────
 (function(){
-  const THRESHOLD = 72;   // px di pull per scatenare il refresh
-  const MAX_PULL  = 96;
-  let startY=0, pulling=false, triggered=false;
+  const THRESHOLD = 80;
+  const MAX_PULL  = 100;
+  let startY=0, triggered=false, active=false;
 
   const indicator = ()=>document.getElementById('ptr-indicator');
   const spinner   = ()=>document.getElementById('ptr-spinner');
 
-  function isAtTop(){
-    // Controlla se l'elemento scrollabile della vista corrente è in cima
-    const scroller = calView==='programmi'
-      ? document.getElementById('programs-list')
-      : document.getElementById('event-list');
-    if(scroller && scroller.scrollTop>2) return false;
-    const calWrap = document.getElementById('cal-wrapper');
-    if(calWrap && calWrap.scrollTop>2) return false;
-    return true;
+  function getScroller(){
+    if(calView==='programmi') return document.getElementById('programs-list');
+    return document.getElementById('event-list');
   }
 
-  document.addEventListener('touchstart', e=>{
-    if(calView==='settings'||calView==='form') return;
-    startY = e.touches[0].clientY;
-    pulling = false; triggered = false;
-  },{passive:true});
+  function onTouchStart(e){
+    const el=e.currentTarget;
+    if(el.scrollTop>0){active=false;return;}
+    startY=e.touches[0].clientY;
+    triggered=false;
+    active=true;
+  }
 
-  document.addEventListener('touchmove', e=>{
-    const scr = document.getElementById('screen-calendar');
-    if(!scr||!scr.classList.contains('active')) return;
-    if(!isAtTop()) return;
-
-    const dy = e.touches[0].clientY - startY;
-    if(dy<=0){ pulling=false; return; }
-
-    pulling = true;
-    const h = Math.min(dy*0.5, MAX_PULL);
-    const ind = indicator(); const sp = spinner();
-    if(!ind||!sp) return;
-    ind.style.height = h+'px';
-    // Rotazione proporzionale al pull prima del trigger
-    if(!triggered) sp.style.transform = `rotate(${(h/THRESHOLD)*360}deg)`;
-    if(h>=THRESHOLD && !triggered){
+  function onTouchMove(e){
+    if(!active)return;
+    const dy=e.touches[0].clientY - startY;
+    if(dy<=0){active=false;return;}
+    const ind=indicator();const sp=spinner();
+    if(!ind||!sp)return;
+    const h=Math.min(dy*0.45, MAX_PULL);
+    ind.style.height=h+'px';
+    if(!triggered) sp.style.transform=`rotate(${(h/THRESHOLD)*360}deg)`;
+    if(h>=THRESHOLD&&!triggered){
       triggered=true;
       sp.classList.add('ptr-spinning');
     }
-  },{passive:true});
+  }
 
-  document.addEventListener('touchend', ()=>{
-    if(!pulling) return;
-    pulling=false;
-    const ind=indicator(); const sp=spinner();
-    if(!ind||!sp) return;
+  function onTouchEnd(){
+    if(!active)return;
+    active=false;
+    const ind=indicator();const sp=spinner();
+    if(!ind||!sp)return;
     if(triggered){
-      // Esegui il refresh: riavvia i listener Firestore
-      stopListeners();
-      startListeners();
+      stopListeners();startListeners();
       showToast('🔄 Aggiornato');
       setTimeout(()=>{
         ind.style.height='0';
@@ -1021,11 +1009,31 @@ window.dismissIosBanner=function(){
         sp.style.transform='';
         triggered=false;
       },700);
-    } else {
+    }else{
       ind.style.height='0';
       sp.style.transform='';
     }
-  },{passive:true});
+  }
+
+  // Attacca i listener sugli elementi scrollabili dopo ogni render
+  function attachPtr(){
+    ['event-list','programs-list'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el||el._ptrAttached)return;
+      el._ptrAttached=true;
+      el.addEventListener('touchstart',onTouchStart,{passive:true});
+      el.addEventListener('touchmove',onTouchMove,{passive:true});
+      el.addEventListener('touchend',onTouchEnd,{passive:true});
+    });
+  }
+
+  // Chiama attachPtr dopo che il DOM è pronto e dopo ogni setView
+  window.addEventListener('load',attachPtr);
+  const origSetView=window.setView;
+  window.setView=function(...args){
+    origSetView&&origSetView(...args);
+    requestAnimationFrame(attachPtr);
+  };
 })();
 
 // ── Navigation ──
