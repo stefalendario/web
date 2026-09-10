@@ -347,6 +347,31 @@ body.dark .attend-btn.not-attending{color:var(--primary-lt)}
 body.dark .btn-danger{color:var(--cinema)}
 .map-preview{margin:6px 18px 14px;border-radius:11px;border:1px solid var(--border);height:46px;background:var(--bg-field);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;color:var(--text-sub);gap:7px;text-decoration:none;font-weight:600}
 
+/* Mappa incorporata (dettaglio evento singolo pin + lista eventi rapidi multi-pin) */
+.detail-map-card{margin:6px 18px 14px;border-radius:12px;border:1.5px solid var(--border);overflow:hidden;background:var(--bg-card)}
+.detail-map-header{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;font-size:13px;font-weight:700;color:var(--text-main)}
+.detail-map-open{color:var(--primary);font-size:12px;font-weight:700;text-decoration:none}
+.detail-map-box{width:100%;height:180px;background:var(--bg-field);position:relative}
+.qe-map-box{height:170px}
+.qe-map-card-fixed{flex-shrink:0;margin:0 12px calc(env(safe-area-inset-bottom,0px) + 10px)}
+.qe-map-wrap{position:relative}
+.qe-map-showall-btn{
+  display:none;align-items:center;gap:4px;
+  position:absolute;top:10px;right:10px;z-index:1200;
+  background:var(--bg-card);border:1.5px solid var(--border);border-radius:20px;
+  padding:6px 12px;font-size:11px;font-weight:700;color:var(--primary);
+  cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.qe-map-showall-btn.show{display:inline-flex}
+.qe-pin-wrap{background:none;border:none}
+.qe-pin{
+  display:block;width:22px;height:22px;margin:2px;
+  background:var(--primary);border:2.5px solid #fff;border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);box-shadow:0 2px 5px rgba(0,0,0,.4);
+}
+.qe-pin.selected{background:#F59E0B;box-shadow:0 2px 9px rgba(245,158,11,.75)}
+.map-box-status{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-empty);font-size:12px;gap:6px}
+
 .form-scroll{flex:1;overflow-y:auto;padding:14px 18px calc(var(--bb-h, 120px) + 14px);-webkit-overflow-scrolling:touch}
 .form-section{margin-bottom:16px}
 .form-label{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
@@ -485,13 +510,22 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 .me-badge{font-size:10px;font-weight:700;color:var(--primary);background:rgba(124,58,237,.11);padding:3px 7px;border-radius:9px}
 
 /* ── Modal ── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:100;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:1500;display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
 .modal-overlay.open{opacity:1;pointer-events:all}
 .modal-sheet{background:var(--bg-card);border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));width:100%;max-width:560px;max-height:85dvh;overflow-y:auto;transform:translateY(100%);transition:transform .24s cubic-bezier(.4,0,.2,1)}
 .modal-overlay.open .modal-sheet{transform:translateY(0)}
 .modal-handle{width:34px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 14px}
 .modal-title{font-size:17px;font-weight:800;color:var(--text-main);margin-bottom:14px}
 .modal-actions{display:flex;gap:9px;margin-top:14px}
+
+/* Dialog di conferma centrato "a comparsa" (usato per eliminazioni/azioni distruttive):
+   z-index massimo dell'app, così è sempre sopra qualunque mappa incorporata
+   (le mappe Leaflet, per via dei propri pannelli interni, possono "bucare" lo
+   stacking-context locale e finire sopra elementi con z-index più basso). */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:26px;opacity:0;pointer-events:none;transition:opacity .18s}
+.confirm-overlay.open{opacity:1;pointer-events:all}
+.confirm-box{background:var(--bg-card);border-radius:16px;padding:20px 18px;width:100%;max-width:330px;box-shadow:0 14px 44px rgba(0,0,0,.4);transform:scale(.9);transition:transform .18s cubic-bezier(.34,1.56,.64,1)}
+.confirm-overlay.open .confirm-box{transform:scale(1)}
 .btn-secondary{flex:1;padding:12px;border-radius:11px;border:1.5px solid var(--border);background:transparent;color:var(--text-sub);font-size:14px;font-weight:600;cursor:pointer}
 .btn-primary-sm{flex:1;padding:12px;border-radius:11px;background:var(--primary);border:none;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
 
@@ -757,10 +791,17 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 <div id="screen-quick-events" class="screen">
   <div class="topbar">
     <button class="icon-btn back-btn" onclick="historyBack()">←</button>
-    <div class="topbar-title">⚡ Eventi rapidi: ci vediamo qui</div>
+    <div class="topbar-title">⚡ Eventi rapidi</div>
     <button class="icon-btn" onclick="openQuickEventForm()" style="background:var(--primary);color:#fff;font-size:22px;font-weight:700">+</button>
   </div>
-  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 12px 20px" id="qe-list-body"></div>
+  <div style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 12px 14px" id="qe-list-body"></div>
+  <div class="detail-map-card qe-map-card-fixed">
+    <div class="detail-map-header"><span>🗺 Mappa · tutti gli eventi di oggi</span></div>
+    <div class="qe-map-wrap">
+      <div id="qe-map" class="detail-map-box qe-map-box"></div>
+      <button type="button" class="qe-map-showall-btn" id="qe-map-showall" onclick="qeShowAllPins()">↺ Mostra tutti</button>
+    </div>
+  </div>
 </div>
 
 <!-- Quick Event Form -->
@@ -807,6 +848,9 @@ body.dark .type-option.selected{background:rgba(124,58,237,.2)}
 <button id="notif-permission-btn" onclick="requestNotifPermission()">🔔 Attiva le notifiche</button>
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal-sheet"><div class="modal-handle"></div><div id="modal-content"></div></div>
+</div>
+<div class="confirm-overlay" id="confirm-overlay" onclick="closeConfirm(event)">
+  <div class="confirm-box"><div id="confirm-content"></div></div>
 </div>
 
 <script type="module">
@@ -898,7 +942,23 @@ async function geoGeocode(query){
   }catch(e){return null;}
 }
 
-// ── Campo "Luogo" con autocomplete Nominatim + pulsante "Scegli sulla mappa" ──
+// ── Mappe incorporate (dettaglio evento singolo + lista eventi rapidi multi-pin) ──
+// Un piccolo registro tiene traccia delle istanze Leaflet attive per poterle
+// distruggere correttamente prima di ricrearle (evita leak e doppie tile-layer).
+const embeddedMapRegistry={};
+function destroyEmbeddedMap(key){
+  if(embeddedMapRegistry[key]){
+    try{embeddedMapRegistry[key].remove();}catch(e){}
+    delete embeddedMapRegistry[key];
+  }
+}
+function createEmbeddedMap(containerId,key,opts){
+  destroyEmbeddedMap(key);
+  const map=L.map(containerId,Object.assign({zoomControl:false,attributionControl:true,scrollWheelZoom:false},opts||{}));
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  embeddedMapRegistry[key]=map;
+  return map;
+}
 // Riusabile sia dal form Evento che dal form Evento rapido.
 let placeSearchTimers={};
 function attachPlaceAutocomplete(inputId,listId){
@@ -1274,7 +1334,7 @@ window.showScreen=function(id,push=true){
   document.getElementById('screen-'+id).classList.add('active');
   if(push&&id!=='splash') navHistory.push(id);
   if(id==='settings') renderSettings();
-  if(id==='quick-events') renderQuickEventsScreen();
+  if(id==='quick-events'){renderQuickEventsScreen();renderQuickEventsMap();}
   updateBarBackBtn();
 };
 window.historyBack=function(){
@@ -1394,8 +1454,7 @@ function startListeners(){
     const all=snap.docs.map(d=>({...d.data(),id:d.id}));
     allQuickEvents=all.filter(q=>q.date===today).sort((a,b)=>(a.startTime||'').localeCompare(b.startTime||''));
     updateQuickEventsFab();
-    if(document.getElementById('screen-quick-events')?.classList.contains('active'))renderQuickEventsScreen();
-    // Pulizia best-effort di eventuali eventi rapidi non di oggi
+    if(document.getElementById('screen-quick-events')?.classList.contains('active')){renderQuickEventsScreen();renderQuickEventsMap();}
     all.filter(q=>q.date!==today).forEach(stale=>{deleteDoc(doc(db,'quick_events',stale.id)).catch(()=>{});});
     if(window._pendingNotif&&window._pendingNotif.type==='quick_event'){
       const p=window._pendingNotif;
@@ -1406,7 +1465,7 @@ function startListeners(){
   // Tick periodico (ogni 30s) per aggiornare lo stato "Scaduto" delle card senza ricaricare i dati
   if(qeTickInterval)clearInterval(qeTickInterval);
   qeTickInterval=setInterval(()=>{
-    if(document.getElementById('screen-quick-events')?.classList.contains('active'))renderQuickEventsScreen();
+    if(document.getElementById('screen-quick-events')?.classList.contains('active'))renderQuickEventsCards();
   },30000);
 }
 function stopListeners(){
@@ -1791,7 +1850,10 @@ function renderDetail(event){
     <div class="detail-row"><div class="detail-row-icon">👥</div><div class="detail-row-content"><div class="detail-row-label">Partecipanti (${(event.attendees||[]).length})</div><div class="detail-row-value">${escHtml((event.attendees||[]).join(', ')||'Nessuno')}</div></div></div>
     ${event.description?`<div class="detail-row"><div class="detail-row-icon">📝</div><div class="detail-row-content"><div class="detail-row-label">Descrizione</div><div class="detail-row-value" style="white-space:pre-wrap">${escHtml(event.description)}</div></div></div>`:''}
   </div>
-  ${mapsUrl?`<a href="${mapsUrl}" target="_blank" class="map-preview">🗺️ Apri in Mappe: ${escHtml(event.place)}</a>`:''}
+  ${event.place?`<div class="detail-map-card">
+    <div class="detail-map-header"><span>🗺 Mappa</span><a href="${mapsUrl}" target="_blank" class="detail-map-open">Apri</a></div>
+    <div id="detail-map" class="detail-map-box"><div class="map-box-status">Carico la mappa…</div></div>
+  </div>`:''}
   <button class="attend-btn ${me?'attending':'not-attending'}" onclick="toggleAttend('${event.id}')">
     ${me?'✅ Partecipo · tocca per rimuoverti':'➕ Partecipa'}
   </button>
@@ -1799,6 +1861,26 @@ function renderDetail(event){
     <button class="btn-outline" onclick="openEventForm('${event.id}',null)">✏️ Modifica</button>
     <button class="btn-danger" onclick="confirmDelete('${event.id}')">🗑 Elimina</button>
   </div>`;
+  if(event.place)renderEventDetailMap(event.place,mapsUrl);
+}
+
+// Mappa incorporata con singolo pin per il dettaglio evento (porting di EventDetailScreen.kt)
+let detailMapReqId=0;
+async function renderEventDetailMap(place,mapsUrl){
+  const myReq=++detailMapReqId;
+  const box=document.getElementById('detail-map');
+  if(!box)return;
+  const gp=await geoGeocode(geoBuildQuery(place));
+  if(myReq!==detailMapReqId)return; // l'utente ha navigato altrove nel frattempo
+  const freshBox=document.getElementById('detail-map');
+  if(!freshBox)return;
+  if(!gp){freshBox.innerHTML='<div class="map-box-status">📍 Posizione non trovata</div>';return;}
+  freshBox.innerHTML='';
+  const map=createEmbeddedMap('detail-map','detail',{center:[gp.lat,gp.lon],zoom:15});
+  const marker=L.marker([gp.lat,gp.lon]).addTo(map);
+  marker.bindPopup(escHtml(place));
+  marker.on('click',()=>{if(mapsUrl)window.open(mapsUrl,'_blank');});
+  setTimeout(()=>map.invalidateSize(),80);
 }
 
 window.toggleAttend=async function(eventId){
@@ -1816,10 +1898,10 @@ window.toggleAttend=async function(eventId){
 };
 
 window.confirmDelete=function(eventId){
-  showModal(`<div class="modal-title">Elimina evento?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Questa azione è irreversibile.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteEventNow('${eventId}')">Elimina</button></div>`);
+  showConfirm(`<div class="modal-title">Elimina evento?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Questa azione è irreversibile.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeConfirm()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteEventNow('${eventId}')">Elimina</button></div>`);
 };
 window.deleteEventNow=async function(eventId){
-  closeModal();
+  closeConfirm();
   try{await deleteDoc(doc(db,'events',eventId));showToast('Evento eliminato');historyBack();}
   catch(e){showToast('Errore: '+e.message);}
 };
@@ -1907,6 +1989,7 @@ window.saveEventForm=async function(){
 window.openQuickEvents=function(){
   showScreen('quick-events');
   renderQuickEventsScreen();
+  renderQuickEventsMap();
 };
 
 function isQuickEventExpired(qe){
@@ -1917,14 +2000,18 @@ function isQuickEventExpired(qe){
   return now>end;
 }
 
-function renderQuickEventsScreen(){
-  const body=document.getElementById('qe-list-body');
-  if(!body)return;
+// Alias mantenuto per compatibilità con i punti di chiamata esistenti
+// (mappa e lista ora sono due aree separate e fisse nel layout, vedi HTML)
+function renderQuickEventsScreen(){renderQuickEventsCards();}
+
+function renderQuickEventsCards(){
+  const wrap=document.getElementById('qe-list-body');
+  if(!wrap)return;
   if(!allQuickEvents.length){
-    body.innerHTML=`<div class="qe-empty"><div class="qe-empty-icon">⚡</div><div style="font-weight:600;font-size:13px">Nessun evento rapido per oggi</div><div style="font-size:11px;margin-top:4px">Tocca + per dire dove sei adesso</div></div>`;
+    wrap.innerHTML=`<div class="qe-empty"><div class="qe-empty-icon">⚡</div><div style="font-weight:600;font-size:13px">Nessun evento rapido per oggi</div><div style="font-size:11px;margin-top:4px">Tocca + per dire dove sei adesso</div></div>`;
     return;
   }
-  body.innerHTML=allQuickEvents.map(qe=>{
+  wrap.innerHTML=allQuickEvents.map(qe=>{
     const expired=isQuickEventExpired(qe);
     const isOwner=currentUser&&qe.insertedByUid&&qe.insertedByUid===currentUser.uid;
     const isParticipant=currentUser&&qe.participants&&Object.prototype.hasOwnProperty.call(qe.participants,currentUser.uid);
@@ -1933,7 +2020,7 @@ function renderQuickEventsScreen(){
       :`<span style="font-size:10px;color:var(--text-muted);font-style:italic">Nessuna tipologia</span>`;
     const participantNames=qe.participants?Object.values(qe.participants):[];
     return`
-    <div class="qe-card${expired?' expired':''}" data-qeid="${qe.id}">
+    <div class="qe-card${expired?' expired':''}" data-qeid="${qe.id}" onclick="qeCardClicked(event,'${qe.id}')">
       <div class="qe-row1">
         <div class="qe-title">${escHtml(qe.title||'Evento rapido')}</div>
         <div class="qe-time${expired?' expired':''}">${escHtml(qe.startTime||'')}–${escHtml(qe.endTime||'')}</div>
@@ -1956,6 +2043,81 @@ function renderQuickEventsScreen(){
       </div>
     </div>`;
   }).join('');
+}
+
+// Click su una scheda evento rapido → centra la mappa fissa sul suo pin ed evidenzialo.
+// Ignora i click che partono da un bottone interno alla card (modifica/elimina/partecipa),
+// che gestiscono già la propria azione.
+window.qeCardClicked=function(evt,id){
+  if(evt.target.closest('button'))return;
+  const marker=qeMarkersById[id];
+  if(!marker){showToast('Posizione non ancora pronta sulla mappa, riprova tra un attimo');return;}
+  const ll=marker.getLatLng();
+  qeSelectPin(marker,ll.lat,ll.lng);
+};
+
+// Mappa incorporata con TUTTI i pin degli eventi rapidi di oggi, zoom automatico
+// sul bounding box (porting di QuickEventsScreen.kt). Usa una cache per luogo così
+// il tick periodico "Scaduto" non ri-geocodifica/ricrea la mappa ad ogni giro.
+// Click su un pin → centra la mappa su quel punto e lo evidenzia; il bottone
+// "Mostra tutti" torna alla vista con tutti i pin nel bounding box.
+const quickEventGeoCache=new Map();
+let qeMapGen=0;
+let qeSelectedMarker=null;
+let qeAllMapPoints=[];
+const qeMarkersById={}; // qe.id -> marker Leaflet, usato dal click sulla card per trovare il pin
+function qePinIcon(selected){
+  return L.divIcon({html:`<span class="qe-pin${selected?' selected':''}"></span>`,className:'qe-pin-wrap',iconSize:[26,26],iconAnchor:[13,24]});
+}
+function qeSelectPin(marker,lat,lon){
+  if(qeSelectedMarker&&qeSelectedMarker!==marker)qeSelectedMarker.setIcon(qePinIcon(false));
+  marker.setIcon(qePinIcon(true));
+  qeSelectedMarker=marker;
+  const map=embeddedMapRegistry['qe'];
+  if(map)map.flyTo([lat,lon],17,{duration:.5});
+  document.getElementById('qe-map-showall')?.classList.add('show');
+}
+window.qeShowAllPins=function(){
+  if(qeSelectedMarker){qeSelectedMarker.setIcon(qePinIcon(false));qeSelectedMarker=null;}
+  document.getElementById('qe-map-showall')?.classList.remove('show');
+  const map=embeddedMapRegistry['qe'];
+  if(!map)return;
+  if(qeAllMapPoints.length===1)map.flyTo(qeAllMapPoints[0],16,{duration:.5});
+  else if(qeAllMapPoints.length>1)map.flyToBounds(qeAllMapPoints,{padding:[26,26],duration:.5});
+};
+async function renderQuickEventsMap(){
+  const myGen=++qeMapGen;
+  if(!document.getElementById('qe-map'))return;
+  const withPlace=allQuickEvents.filter(q=>q.place&&q.place.trim());
+  for(const qe of withPlace){
+    const key=geoBuildQuery(qe.place);
+    if(!quickEventGeoCache.has(key)){
+      const gp=await geoGeocode(key);
+      if(myGen!==qeMapGen)return; // superato da un render più recente
+      quickEventGeoCache.set(key,gp); // null = non trovato, evita di ritentare ad ogni giro
+      await new Promise(r=>setTimeout(r,150)); // rispetta il rate-limit di Nominatim
+    }
+  }
+  if(myGen!==qeMapGen)return;
+  if(!document.getElementById('qe-map'))return;
+  const map=createEmbeddedMap('qe-map','qe',{center:DEFAULT_MAP_CENTER,zoom:13});
+  qeSelectedMarker=null;
+  Object.keys(qeMarkersById).forEach(k=>delete qeMarkersById[k]);
+  document.getElementById('qe-map-showall')?.classList.remove('show');
+  const pts=[];
+  withPlace.forEach(qe=>{
+    const gp=quickEventGeoCache.get(geoBuildQuery(qe.place));
+    if(!gp)return;
+    pts.push([gp.lat,gp.lon]);
+    const marker=L.marker([gp.lat,gp.lon],{icon:qePinIcon(false)}).addTo(map);
+    qeMarkersById[qe.id]=marker;
+    marker.bindPopup(`<b>${escHtml(qe.title||qe.place)}</b><br>${escHtml(qe.insertedBy||'')} · ${escHtml(qe.place)}`);
+    marker.on('click',()=>qeSelectPin(marker,gp.lat,gp.lon));
+  });
+  qeAllMapPoints=pts;
+  if(pts.length===1){map.setView(pts[0],16);}
+  else if(pts.length>1){map.fitBounds(pts,{padding:[26,26]});}
+  setTimeout(()=>map.invalidateSize(),80);
 }
 
 // Aggiorna il pulsating del bottone ⚡ nella barra viste in base alla presenza di eventi rapidi oggi
@@ -1984,10 +2146,10 @@ window.toggleQuickEventJoin=async function(id){
 
 window.confirmDeleteQuickEvent=function(id){
   const qe=allQuickEvents.find(q=>q.id===id);
-  showModal(`<div class="modal-title">Eliminare l'evento rapido?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">"${escHtml(qe?.place||'')}" verrà rimosso definitivamente.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteQuickEventNow('${id}')">Elimina</button></div>`);
+  showConfirm(`<div class="modal-title">Eliminare l'evento rapido?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">"${escHtml(qe?.place||'')}" verrà rimosso definitivamente.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeConfirm()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteQuickEventNow('${id}')">Elimina</button></div>`);
 };
 window.deleteQuickEventNow=async function(id){
-  closeModal();
+  closeConfirm();
   try{await deleteDoc(doc(db,'quick_events',id));showToast('Evento rapido eliminato');}
   catch(e){showToast('Errore: '+e.message);}
 };
@@ -2076,8 +2238,8 @@ window.toggleTheme=function(){
   const t=document.getElementById('theme-toggle');if(t)t.classList.toggle('on',isDark);
   localStorage.setItem('strega_dark',isDark?'1':'0');
 };
-window.confirmLogout=function(){showModal(`<div class="modal-title">Esci dall'account?</div><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="doLogout()">Esci</button></div>`);};
-window.doLogout=async function(){closeModal();await signOut(auth);navHistory=['auth'];};
+window.confirmLogout=function(){showConfirm(`<div class="modal-title">Esci dall'account?</div><div class="modal-actions"><button class="btn-secondary" onclick="closeConfirm()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="doLogout()">Esci</button></div>`);};
+window.doLogout=async function(){closeConfirm();await signOut(auth);navHistory=['auth'];};
 
 window.openAddCategory=function(){
   showModal(`<div class="modal-title">Nuova categoria</div>
@@ -2145,6 +2307,8 @@ window.deleteCategoryNow=async function(key,deleteEvs,reassignTo){
 
 window.showModal=function(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal-overlay').classList.add('open');};
 window.closeModal=function(e){if(e&&e.target!==document.getElementById('modal-overlay'))return;document.getElementById('modal-overlay').classList.remove('open');};
+window.showConfirm=function(html){document.getElementById('confirm-content').innerHTML=html;document.getElementById('confirm-overlay').classList.add('open');};
+window.closeConfirm=function(e){if(e&&e.target!==document.getElementById('confirm-overlay'))return;document.getElementById('confirm-overlay').classList.remove('open');};
 
 // ── Programs ──────────────────────────────────────────────────────
 function filteredPrograms(){
@@ -2244,10 +2408,10 @@ window.openProgramUrl=function(pid){
 
 window.confirmDeleteProgram=function(pid){
   const p=allPrograms.find(x=>x.id===pid);if(!p)return;
-  showModal(`<div class="modal-title">Elimina programma?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Verrà rimosso dalla lista per tutti.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteProgramNow('${pid}')">Elimina</button></div>`);
+  showConfirm(`<div class="modal-title">Elimina programma?</div><p style="color:var(--text-sub);font-size:14px;margin-bottom:4px">Verrà rimosso dalla lista per tutti.</p><div class="modal-actions"><button class="btn-secondary" onclick="closeConfirm()">Annulla</button><button class="btn-primary-sm" style="background:#dc2626" onclick="deleteProgramNow('${pid}')">Elimina</button></div>`);
 };
 window.deleteProgramNow=async function(pid){
-  closeModal();
+  closeConfirm();
   if(!pid){showToast('Errore: ID programma non valido');return;}
   try{await deleteDoc(doc(db,'programs',pid));showToast('Programma eliminato');}
   catch(e){showToast('Errore: '+e.message);}
